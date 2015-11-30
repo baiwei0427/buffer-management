@@ -20,7 +20,7 @@
 
 /* Each port has a fixed buffer which is completely shared by all the queues */
 #define STATIC_PORT_THRESH 0
-/* Static Threshold (ST) for eahc switch queue */
+/* Static Threshold (ST) for each switch queue */
 #define STATIC_THRESH 1
 /* Dynamic Threshold (DT) for each switch queue */
 #define DYNAMIC_THRESH 2

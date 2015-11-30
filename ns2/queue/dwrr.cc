@@ -117,7 +117,8 @@ DWRR::~DWRR()
 {
 	delete activeList;
 	delete [] queues;
-	timer_.cancel();
+	if (estimate_quantum_enable_timer_)
+		timer_.cancel();
 }
 
 void DWRR::timeout(int)
@@ -257,8 +258,15 @@ int DWRR::DropPacket(int q, int pkt_len)
 	}
 	else if (buffer_scheme_ == DYNAMIC_THRESH)
 	{
-		if (pkt_len + queues[q].byteLength() > queues[q].alpha * (shared_buf_lim_[shared_buffer_id_] - shared_buf_bytes_[shared_buffer_id_]))
+		int queue_len = pkt_len + queues[q].byteLength();
+		int dynamic_thresh = queues[q].alpha * (shared_buf_lim_[shared_buffer_id_] - shared_buf_bytes_[shared_buffer_id_]);
+
+		if (queue_len > dynamic_thresh)
+		{
+			if (debug_)
+				printf("queue length: %d > DT threshold: %d (remaining buffer %d)\n", queue_len, dynamic_thresh, shared_buf_lim_[shared_buffer_id_] - shared_buf_bytes_[shared_buffer_id_]);
 			return 1;
+		}
 		else
 			return 0;
 	}
@@ -284,6 +292,7 @@ int DWRR::DropPacket(int q, int pkt_len)
  *   - $q set-ecn-thresh queue_id ecn_thresh
  *   - $q set-queue-thresh queue_id queue_thresh
  *   - $q set-alpha queue_id alpha
+ *   - $q set-buffer buffer_id buffer_size
  *   - $q attach-total file
  *   - $q attach-queue file
  *
@@ -419,6 +428,31 @@ int DWRR::command(int argc, const char*const* argv)
 				exit(1);
 			}
 		}
+		else if(strcmp(argv[1], "set-buffer") == 0)
+		{
+			int buffer_id = atoi(argv[2]);
+			if (buffer_id < SHARED_BUFFER_NUM && buffer_id >= 0)
+			{
+				int buffer_size = atoi(argv[3]);
+				if (buffer_size > 0)
+				{
+					shared_buf_lim_[buffer_id] = buffer_size;
+					if (debug_)
+						printf("shared buffer %d: %d\n", buffer_id, shared_buf_lim_[buffer_id]);
+					return (TCL_OK);
+				}
+				else
+				{
+					fprintf(stderr, "illegal shared buffer value %s for shared buffer %s\n", argv[3],argv[2]);
+					exit(1);
+				}
+			}
+			else
+			{
+				fprintf(stderr, "no such buffer %s\n", argv[2]);
+				exit(1);
+			}
+		}
 	}
 	return (Queue::command(argc, argv));
 }
@@ -431,6 +465,9 @@ void DWRR::enque(Packet *p)
 	hdr_flags* hf = hdr_flags::access(p);
 	int pktSize = hdr_cmn::access(p)->size();
 	queue_num_ = min(queue_num_, MAX_QUEUE_NUM);
+
+	trace_qlen();
+	trace_total_qlen();
 
 	if (init == 0)
 	{
@@ -486,7 +523,13 @@ void DWRR::enque(Packet *p)
 		prio = queue_num_-1;
 
 	queues[prio].enque(p);
-	shared_buf_bytes_[shared_buffer_id_] += pktSize;
+	/* If we enable shared buffer (ST, DT or our new solution) */
+	if (buffer_scheme_ != STATIC_PORT_THRESH)
+	{
+		shared_buf_bytes_[shared_buffer_id_] += pktSize;
+		if (debug_)
+			printf("shared buffer %d: %d (limit: %d)\n", shared_buffer_id_, shared_buf_bytes_[shared_buffer_id_], shared_buf_lim_[shared_buffer_id_]);
+	}
 
 	/* if queues[prio] is not in activeList */
 	if (queues[prio].active == false)
@@ -503,8 +546,6 @@ void DWRR::enque(Packet *p)
 	if (MarkingECN(prio) > 0 && hf->ect())
 		hf->ce() = 1;
 
-	trace_qlen();
-	trace_total_qlen();
 }
 
 Packet *DWRR::deque(void)
@@ -542,7 +583,13 @@ Packet *DWRR::deque(void)
 				{
 					pkt = headNode->deque();
 					headNode->deficitCounter -= pktSize;
-					shared_buf_bytes_[shared_buffer_id_] -= pktSize;
+					/* If we enable shared buffer (ST, DT or our new solution) */
+					if (buffer_scheme_ != STATIC_PORT_THRESH)
+					{
+						shared_buf_bytes_[shared_buffer_id_] -= pktSize;
+						if (debug_)
+							printf("shared buffer %d: %d (limit: %d)\n", shared_buffer_id_, shared_buf_bytes_[shared_buffer_id_], shared_buf_lim_[shared_buffer_id_]);
+					}
 					//printf("deque a packet\n");
 
 					/* After dequeue, headNode becomes empty. In such case, we should delete this queue from activeList. */

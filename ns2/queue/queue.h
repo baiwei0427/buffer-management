@@ -42,7 +42,7 @@
 #include "ip.h"
 class Packet;
 
-#define SHARED_BUFFER_NUM 1024
+#define SHARED_BUFFER_NUM 64
 #define SHARED_BUFFER_SIZE 9437184 //9MB
 
 class PacketQueue : public TclObject {

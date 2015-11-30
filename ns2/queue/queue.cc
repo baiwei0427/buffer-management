@@ -98,15 +98,6 @@ Queue::Queue() : Connector(), blocked_(0), unblock_on_resume_(1), qh_(*this),
 		 old_util_(0), period_begin_(0), cur_util_(0), buf_slot_(0),
 		 util_buf_(NULL)
 {
-    char shared_buf_name[32] = {'\0'};
-
-    for (int i = 0; i < SHARED_BUFFER_NUM; i++)
-    {
-        memset(shared_buf_name, '\0', 32);
-        sprintf(shared_buf_name, "shared_buf_limit_%d_", i);
-        bind(shared_buf_name, &shared_buf_lim_[i]);
-    }
-
 	bind("limit_", &qlim_);
 	bind("util_weight_", &util_weight_);
 	bind_bool("blocked_", &blocked_);
