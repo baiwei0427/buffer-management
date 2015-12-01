@@ -1,12 +1,15 @@
 set ns [new Simulator]
 
 set port1_senders 8
-set port2_senders 2
+set port2_senders 8
+set port1_services 8
+set port2_services 2
+
 set ecn_thresh 80000; #The ECN marking threshold (pkts)
 set dwrr_quantum 1500; #The quantum (weight) of the queue
 set queue_alpha 4
 set buf_id 0
-set buf_size 270000; #270KB
+set buf_size 200000; #200KB
 set marking_schme 0; #per-queue ECN
 set buffer_scheme 2; #DT algorithm
 
@@ -16,7 +19,7 @@ set ackRatio 1
 set packetSize 1460
 set lineRate 10Gb
 
-set simulationTime 0.04
+set simulationTime 0.08
 set throughputSamplingInterval 0.0004
 
 Agent/TCP set windowInit_ 16
@@ -48,7 +51,7 @@ Queue/DWRR set estimate_quantum_enable_timer_ false
 Queue/DWRR set link_capacity_ $lineRate
 Queue/DWRR set buffer_scheme_ $buffer_scheme
 Queue/DWRR set shared_buffer_id_ $buf_id
-Queue/DWRR set alpha_ 2
+Queue/DWRR set alpha_ 4
 Queue/DWRR set debug_ true
 
 set mytracefile [open mytracefile.tr w]
@@ -79,18 +82,17 @@ $ns simplex-link $receiver2 $switch $lineRate [expr $RTT/4] DropTail
 set L [$ns link $switch $receiver1]
 set q [$L set queue_]
 $q attach-total $port1_tot_qlenfile
-for {set i 0} {$i<$port1_senders} {incr i} {
+for {set i 0} {$i<$port1_services} {incr i} {
     $q set-quantum $i $dwrr_quantum
     $q set-ecn-thresh $i $ecn_thresh
     $q set-alpha $i $queue_alpha
 }
 $q set-buffer $buf_id $buf_size
 
-
 set L [$ns link $switch $receiver2]
 set q [$L set queue_]
 $q attach-total $port2_tot_qlenfile
-for {set i 0} {$i<$port2_senders} {incr i} {
+for {set i 0} {$i<$port2_services} {incr i} {
     $q set-quantum $i $dwrr_quantum
     $q set-ecn-thresh $i $ecn_thresh
     $q set-alpha $i $queue_alpha
@@ -102,7 +104,7 @@ for {set i 0} {$i<$port1_senders} {incr i} {
     $ns duplex-link $n1($i) $switch $lineRate [expr $RTT/4] DropTail
 	set tcp1($i) [new Agent/TCP/FullTcp/Sack]
 	set sink1($i) [new Agent/TCP/FullTcp/Sack]
-	$tcp1($i) set serviceid_ $i
+	$tcp1($i) set serviceid_ [expr $i%$port1_services]
 	$sink1($i) listen
 
 	$ns attach-agent $n1($i) $tcp1($i)
@@ -121,7 +123,7 @@ for {set i 0} {$i<$port2_senders} {incr i} {
     $ns duplex-link $n2($i) $switch $lineRate [expr $RTT/4] DropTail
 	set tcp2($i) [new Agent/TCP/FullTcp/Sack]
 	set sink2($i) [new Agent/TCP/FullTcp/Sack]
-	$tcp2($i) set serviceid_ $i
+	$tcp2($i) set serviceid_ [expr $i%$port2_services]
 	$sink2($i) listen
 
 	$ns attach-agent $n2($i) $tcp2($i)
