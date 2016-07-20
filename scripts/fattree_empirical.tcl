@@ -12,7 +12,6 @@ set flowlog [open flow.tr w]
 set debug_mode 1
 set sim_start [clock seconds]
 set flow_tot 100000; #total number of flows to generate
-set init_fid 0
 set flow_gen 0; #the number of flows that have been generated
 set flow_fin 0; #the number of flows that have finished
 set packet_size 8960; #Jumbo packet (9KB)
@@ -22,12 +21,12 @@ set switch_alg DCTCP
 set flow_cdf CDF_dctcp.tcl
 set mean_flow_size 1711250
 
-set connections_per_pair 10
+set connections_per_pair 11
 set core_load 0.5
 set inter_traffic_ratio [expr ($fattree_k * $fattree_k - 2.0) / ($fattree_k * $fattree_k)]
 set load [expr $core_load / $inter_traffic_ratio / $topology_x]; # load of edge links
 set buffer_size 300;
-set rto_min 0.005; #5ms, the lowest RTO Linux can support
+set rto_min 0.001; #1ms
 set ecn_thresh 60; #540KB, BDP = 625KB
 
 ################## TCP #########################
@@ -35,13 +34,14 @@ Agent/TCP set ecn_ 1
 Agent/TCP set old_ecn_ 1
 Agent/TCP set dctcp_ true
 Agent/TCP set dctcp_g_ 0.0625
-Agent/TCP set windowInit_ 16
+Agent/TCP set windowInit_ 10
 Agent/TCP set packetSize_ $packet_size
 Agent/TCP set window_ 1000
 Agent/TCP set slow_start_restart_ false
 Agent/TCP set tcpTick_ 0.000001 ; # 1us should be enough
 Agent/TCP set minrto_ $rto_min
 Agent/TCP set rtxcur_init_ $rto_min ; # initial RTO
+Agent/TCP set numdupacks_ 3 ; # dup ACK threshold
 Agent/TCP set windowOption_ 0
 
 Agent/TCP/FullTcp set nodelay_ true; # disable Nagle

@@ -52,22 +52,6 @@ static const char rcsid[] =
 #include "classifier.h"
 #include "ip.h"
 
-struct hkey
-{
-        nsaddr_t src, dst;
-        int fid, ttl;
-};
-
-static unsigned int HashString(const char *bytes, int length)
-{
-        unsigned int result = 0;
-
-        for (int i = 0;  i < length;  i++)
-                result += (result << 3) + *bytes++;
-
-        return result;
-}
-
 class MultiPathForwarder : public Classifier {
 public:
 	MultiPathForwarder() : ns_(0), perflow_(0), debug_(0) {
@@ -80,17 +64,7 @@ public:
 
                 if (perflow_) {
                         hdr_ip* h = hdr_ip::access(p);
-                        struct hkey buf_;
-                        buf_.src = mshift(h->saddr());
-                        buf_.dst = mshift(h->daddr());
-                        buf_.fid = h->flowid();
-                        buf_.ttl = h->ttl();
-
-                        char* bufString = (char*)&buf_;
-                        int length = sizeof(hkey);
-                        unsigned int ms_ = HashString(bufString, length);
-                        ms_ %= (maxslot_ + 1);
-
+                        int ms_ = h->flowid() % (maxslot_ + 1);
                         int fail = ms_;
                         do {
                                 cl = ms_++;
@@ -98,8 +72,7 @@ public:
                         } while (slot_[cl] == 0 && ms_ != fail);
 
                         if (debug_) {
-                                printf("src = %u, dst = %u, fid = %d, ttl = %d, ms_= %u, cl = %d\n", \
-                                       buf_.src, buf_.dst, buf_.fid, buf_.ttl, ms_, cl);
+                                printf("fid = %d, ms_= %u, cl = %d\n", h->flowid(), ms_, cl);
                         }
 
                 } else {

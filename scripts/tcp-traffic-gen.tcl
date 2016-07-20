@@ -4,7 +4,6 @@
 # - debug_mode: 1 (output necessary information for debug) or 0 (no output)
 # - sim_start: simulation start time
 # - flow_tot: total number of flows to generate
-# - init_fid: flow ID
 # - flow_gen: number of flows that have been generated
 # - flow_fin: number of flows that have finished
 
@@ -171,8 +170,12 @@ Agent_Aggr_pair instproc attach-logfile { logf } {
         $self set logfile $logf
 }
 
+set fid_rng [new RNG]; #random number generator
+$fid_rng seed 1299
+set fid_range 200000
+
 Agent_Aggr_pair instproc setup {s_node d_node gid nr pair_type tcp_type} {
-        global init_fid
+        global fid_rng fid_range
         $self instvar snode dnode; #sender and destination nodes
         $self instvar pairs; #connection pairs
         $self instvar group_id; #ID of this group
@@ -193,10 +196,8 @@ Agent_Aggr_pair instproc setup {s_node d_node gid nr pair_type tcp_type} {
                 $pairs($i) setup $snode $dnode $pair_tcp_type
                 $pairs($i) set_group_id $group_id; #let each pair know its group ID
                 $pairs($i) set_pair_id $i; #assign pair ID
-                $pairs($i) set_flow_id $init_fid; #assign global flow ID
+                $pairs($i) set_flow_id [$fid_rng integer $fid_range]; #assign global flow ID
                 $pairs($i) set_callback $self fin_notify; #register controller and callback function
-
-                incr init_fid
         }
 }
 
@@ -244,7 +245,7 @@ Agent_Aggr_pair instproc init_schedule {} {
 }
 
 Agent_Aggr_pair instproc schedule {} {
-        global ns flow_gen flow_tot debug_mode init_fid
+        global ns flow_gen flow_tot debug_mode fid_rng fid_range
         $self instvar group_id
         $self instvar snode dnode
         $self instvar tnext rx_flow_interval rx_flow_size
@@ -266,10 +267,9 @@ Agent_Aggr_pair instproc schedule {} {
                 $pairs($nr_pairs) setup $snode $dnode $pair_tcp_type
                 $pairs($nr_pairs) set_group_id $group_id; #let each pair know its group ID
                 $pairs($nr_pairs) set_pair_id $nr_pairs; #assign pair ID
-                $pairs($nr_pairs) set_flow_id $init_fid; #assign global flow ID
+                $pairs($nr_pairs) set_flow_id [$fid_rng integer $fid_range]; #assign global flow ID
                 $pairs($nr_pairs) set_callback $self fin_notify; #register controller and callback function
 
-                incr init_fid; #update global flow ID
                 incr nr_pairs; #increase the number of pairs for this group
 
                 if {$flow_gen < $flow_tot} {
