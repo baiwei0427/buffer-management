@@ -19,8 +19,8 @@ set ackRatio 1
 set packetSize 1460
 set lineRate 10Gb
 
-set simulationTime 0.08
-set throughputSamplingInterval 0.0004
+set simulationTime 0.02
+set throughputSamplingInterval 0.0002
 
 Agent/TCP set windowInit_ 16
 Agent/TCP set ecn_ 0
