@@ -64,7 +64,7 @@ public:
 
                 if (perflow_) {
                         hdr_ip* h = hdr_ip::access(p);
-                        int ms_ = h->flowid() % (maxslot_ + 1);
+                        int ms_ = (h->flowid() >> (32 - h->ttl())) % (maxslot_ + 1);
                         int fail = ms_;
                         do {
                                 cl = ms_++;
@@ -72,7 +72,6 @@ public:
                         } while (slot_[cl] == 0 && ms_ != fail);
 
                         if (debug_) {
-                                printf("fid = %d, ms_= %u, cl = %d\n", h->flowid(), ms_, cl);
                         }
 
                 } else {
