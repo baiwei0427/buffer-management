@@ -171,11 +171,12 @@ Agent_Aggr_pair instproc attach-logfile { logf } {
 }
 
 set fid_rng [new RNG]; #random number generator
-$fid_rng seed 1299
-set fid_range 200000
+$fid_rng seed 2199
+set fid_min 1000000
+set fid_max 9999999
 
 Agent_Aggr_pair instproc setup {s_node d_node gid nr pair_type tcp_type} {
-        global fid_rng fid_range
+        global fid_rng fid_min fid_max
         $self instvar snode dnode; #sender and destination nodes
         $self instvar pairs; #connection pairs
         $self instvar group_id; #ID of this group
@@ -196,7 +197,7 @@ Agent_Aggr_pair instproc setup {s_node d_node gid nr pair_type tcp_type} {
                 $pairs($i) setup $snode $dnode $pair_tcp_type
                 $pairs($i) set_group_id $group_id; #let each pair know its group ID
                 $pairs($i) set_pair_id $i; #assign pair ID
-                $pairs($i) set_flow_id [$fid_rng integer $fid_range]; #assign global flow ID
+                $pairs($i) set_flow_id [$fid_rng uniform $fid_min $fid_max]; #assign global flow ID
                 $pairs($i) set_callback $self fin_notify; #register controller and callback function
         }
 }
@@ -245,7 +246,7 @@ Agent_Aggr_pair instproc init_schedule {} {
 }
 
 Agent_Aggr_pair instproc schedule {} {
-        global ns flow_gen flow_tot debug_mode fid_rng fid_range
+        global ns flow_gen flow_tot debug_mode fid_rng fid_min fid_max
         $self instvar group_id
         $self instvar snode dnode
         $self instvar tnext rx_flow_interval rx_flow_size
@@ -267,7 +268,7 @@ Agent_Aggr_pair instproc schedule {} {
                 $pairs($nr_pairs) setup $snode $dnode $pair_tcp_type
                 $pairs($nr_pairs) set_group_id $group_id; #let each pair know its group ID
                 $pairs($nr_pairs) set_pair_id $nr_pairs; #assign pair ID
-                $pairs($nr_pairs) set_flow_id [$fid_rng integer $fid_range]; #assign global flow ID
+                $pairs($nr_pairs) set_flow_id [$fid_rng uniform $fid_min $fid_max]; #assign global flow ID
                 $pairs($nr_pairs) set_callback $self fin_notify; #register controller and callback function
 
                 incr nr_pairs; #increase the number of pairs for this group
