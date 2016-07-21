@@ -72,6 +72,7 @@ public:
                         } while (slot_[cl] == 0 && ms_ != fail);
 
                         if (debug_) {
+                                printf("fid = %d, ttl = %d, ms_= %u, cl = %d\n", h->flowid(), h->ttl(), ms_, cl);
                         }
 
                 } else {
