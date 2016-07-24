@@ -29,12 +29,21 @@ set buffer_size 300;
 set rto_min 0.001; #1ms
 set ecn_thresh 60; #540KB, BDP = 625KB
 
+################ Shared Buffer ##################
+set avg_port_buf 250000; #250KB
+set edge_port [expr int($fattree_k / 2 + $fattree_k / 2 * $topology_x)]
+set edge_shared_buf [expr $edge_port * $avg_port_buf]
+set core_shared_buf [expr $fattree_k * $avg_port_buf]
+
+puts "shared buffer of edge switches ($edge_port ports): $edge_shared_buf"
+puts "shared buffer of aggregation/core switches ($fattree_k ports): $core_shared_buf"
+
 ################## TCP #########################
 Agent/TCP set ecn_ 1
 Agent/TCP set old_ecn_ 1
 Agent/TCP set dctcp_ true
 Agent/TCP set dctcp_g_ 0.0625
-Agent/TCP set windowInit_ 10
+Agent/TCP set windowInit_ 16
 Agent/TCP set packetSize_ $packet_size
 Agent/TCP set window_ 1000
 Agent/TCP set slow_start_restart_ false
@@ -63,6 +72,10 @@ Queue/RED set maxthresh_ $ecn_thresh
 
 Queue/DCTCP set thresh_ $ecn_thresh
 Queue/DCTCP set mean_pktsize_ [expr $packet_size + 40]
+Queue/DCTCP set enable_shared_buf_ true
+Queue/DCTCP set shared_buf_id_ -1
+Queue/DCTCP set alpha_ 1
+Queue/DCTCP set debug_ false
 
 ################ Multipathing ###########################
 $ns rtproto DV
@@ -111,6 +124,14 @@ for {set i 0} {$i < $topology_cores} {incr i} {
 for {set i 0} {$i < $topology_servers} {incr i} {
         set j [expr $i / $topology_spt] ; # ToR ID
         $ns duplex-link $s($i) $edge($j) [set link_rate]Gb [expr $host_delay + $mean_link_delay] $switch_alg
+
+        ######### configure shared buffer for edge to server links #######
+        set L [$ns link $edge($j) $s($i)]
+        set q [$L set queue_]
+        set buf_id $j
+        $q set shared_buf_id_ $buf_id
+        $q set-shared-buffer $buf_id $edge_shared_buf
+        $q register
 }
 
 ######### Links from Edge to Aggregation Switches #########
@@ -122,6 +143,22 @@ for {set i 0} {$i < $topology_edges} {incr i} {
 
         for {set j $start} {$j < $end} {incr j} {
                 $ns duplex-link $edge($i) $aggr($j) [set link_rate]Gb [expr $mean_link_delay] $switch_alg
+
+                ######### configure shared buffer for edge to aggregation links #######
+                set L [$ns link $edge($i) $aggr($j)]
+                set q [$L set queue_]
+                set buf_id $i
+                $q set shared_buf_id_ $buf_id
+                $q set-shared-buffer $buf_id $edge_shared_buf
+                $q register
+
+                ######## configure shared buffer for aggregation to edge links ########
+                set L [$ns link $aggr($j) $edge($i)]
+                set q [$L set queue_]
+                set buf_id [expr $j + $fattree_k * $fattree_k / 2]
+                $q set shared_buf_id_ $buf_id
+                $q set-shared-buffer $buf_id $core_shared_buf
+                $q register
         }
 }
 
@@ -134,8 +171,27 @@ for {set i 0} {$i < $topology_aggrs} {incr i} {
 
         for {set j $start} {$j < $end} {incr j} {
                 $ns duplex-link $aggr($i) $core($j) [set link_rate]Gb [expr $mean_link_delay] $switch_alg
+
+                ######### configure shared buffer for aggregation to core links #######
+                set L [$ns link $aggr($i) $core($j)]
+                set q [$L set queue_]
+                set buf_id [expr $i + $fattree_k * $fattree_k / 2]
+                $q set shared_buf_id_ $buf_id
+                $q set-shared-buffer $buf_id $core_shared_buf
+                $q register
+
+                ######### configure shared buffer for core to aggregation links #######
+                set L [$ns link $core($j) $aggr($i)]
+                set q [$L set queue_]
+                set buf_id [expr $j + $fattree_k * $fattree_k]
+                $q set shared_buf_id_ $buf_id
+                $q set-shared-buffer $buf_id $core_shared_buf
+                $q register
         }
 }
+
+######## print information of shared buffer switches #######
+$q print
 
 #############  Agents ################
 set lambda [expr ($link_rate * $load * 1000000000)/($mean_flow_size * 8.0 / $packet_size * ($packet_size + 40))]
