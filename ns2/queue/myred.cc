@@ -18,7 +18,7 @@ static class MyREDClass : public TclClass
 /* Initialize static members as 0 */
 int MyRED::shared_buf_lim_[SHARED_BUFFER_NUM] = {0};
 int MyRED::shared_buf_len_[SHARED_BUFFER_NUM] = {0};
-//int MyRED::shared_buf_mem_[SHARED_BUFFER_NUM] = {0};
+int MyRED::shared_buf_mem_[SHARED_BUFFER_NUM] = {0};
 
 MyRED::MyRED()
 {
@@ -63,7 +63,7 @@ bool MyRED::buffer_overfill(Packet* p)
 		int thresh = alpha_ * free_buffer;
 		if (debug_)
 		{
-			printf("dynamic threshold: %f * %d = %d", alpha_, free_buffer, thresh);
+			printf("dynamic threshold: %f * %d = %d\n", alpha_, free_buffer, thresh);
 		}
 
 		if (len > thresh)
@@ -114,13 +114,22 @@ int MyRED::command(int argc, const char*const* argv)
 			{
 				if (shared_buf_lim_[i] > 0)
 				{
-					printf("shared buffer %d: limit %d occupancy %d\n",
-						i, shared_buf_lim_[i], shared_buf_len_[i]);
+					printf("shared buffer %d: limit %d occupancy %d members %d\n",
+						i, shared_buf_lim_[i], shared_buf_len_[i], shared_buf_mem_[i]);
 				}
 			}
+
+			return (TCL_OK);
+		}
+		else if (strcmp(argv[1], "register") == 0)
+		{
+			if (shared_buf_id_ >= 0 && shared_buf_id_ < SHARED_BUFFER_NUM)
+				shared_buf_mem_[shared_buf_id_]++;
+
+			return (TCL_OK);
 		}
 	}
-	if (argc == 4)
+	else if (argc == 4)
 	{
 		if (strcmp(argv[1], "set-shared-buffer") == 0)
 		{
@@ -146,6 +155,8 @@ int MyRED::command(int argc, const char*const* argv)
 					printf("Invalid shared buffer size %d\n", size);
 				}
 			}
+
+			return (TCL_OK);
 		}
 	}
 

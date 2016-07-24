@@ -18,7 +18,7 @@ protected:
         void enque(Packet*);
 	Packet* deque();
         bool buffer_overfill(Packet*);  /* whether the switch buffer is overfilled */
-        void ecn_mark(Packet*); /* perform ECN marking */ 
+        void ecn_mark(Packet*); /* perform ECN marking */
 
         int thresh_;    /* ECN marking threshold in packet */
         int mean_pktsize_;      /* packet size in bytes */
@@ -30,7 +30,7 @@ protected:
 
         static int shared_buf_lim_[SHARED_BUFFER_NUM];  /* shared buffer sizes */
         static int shared_buf_len_[SHARED_BUFFER_NUM];  /* shared buffer occupancies in bytes*/
-        //static int shared_buf_mem_[SHARED_BUFFER_NUM];  /* number of members (queue/port) belonging to a shared buffer */
+        static int shared_buf_mem_[SHARED_BUFFER_NUM];  /* number of members (queue/port) belonging to a shared buffer */
 };
 
 #endif
