@@ -67,9 +67,14 @@ bool MyRED::buffer_overfill(Packet* p)
 		}
 
 		if (len > thresh)
+		{
 			return true;
+		}
 		else
+		{
+			shared_buf_len_[shared_buf_id_] += hdr_cmn::access(p)->size();
 			return false;
+		}
 	}
 	/* invalid shared buffer ID */
 	else
@@ -99,6 +104,17 @@ void MyRED::enque(Packet* p)
         q_->enque(p);
 }
 
+Packet* MyRED::deque()
+{
+	Packet *p = q_->deque();
+
+	if (p && enable_shared_buf_ && shared_buf_id_ >= 0 && shared_buf_id_ < SHARED_BUFFER_NUM)
+	{
+		shared_buf_len_[shared_buf_id_] -= hdr_cmn::access(p)->size();
+	}
+
+        return p;
+}
 /*
  * Usages:
  * - $q print: print size, # of members information of shared buffers
@@ -161,9 +177,4 @@ int MyRED::command(int argc, const char*const* argv)
 	}
 
 	return (Queue::command(argc, argv));
-}
-
-Packet* MyRED::deque()
-{
-        return (q_->deque());
 }
