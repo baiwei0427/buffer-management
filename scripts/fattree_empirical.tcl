@@ -5,13 +5,13 @@ set link_rate 100; #100Gbps
 set mean_link_delay 0.0000002; #0.2us
 set host_delay 0.000012; #12us
 
-set fattree_k 6
-set topology_x 2
+set fattree_k 16
+set topology_x 1
 
 set flowlog [open flow.tr w]
 set debug_mode 1
 set sim_start [clock seconds]
-set flow_tot 100000; #total number of flows to generate
+set flow_tot 200000; #total number of flows to generate
 set flow_gen 0; #the number of flows that have been generated
 set flow_fin 0; #the number of flows that have finished
 set packet_size 8960; #Jumbo packet (9KB)
@@ -21,16 +21,16 @@ set switch_alg DCTCP
 set flow_cdf CDF_dctcp.tcl
 set mean_flow_size 1711250
 
-set connections_per_pair 11
-set core_load 0.5
-set inter_traffic_ratio [expr ($fattree_k * $fattree_k - 2.0) / ($fattree_k * $fattree_k)]
-set load [expr $core_load / $inter_traffic_ratio / $topology_x]; # load of edge links
-set buffer_size 300;
-set rto_min 0.001; #1ms
-set ecn_thresh 60; #540KB, BDP = 625KB
+set num_pairs 40
+set connections_per_pair 20
+set load 0.5; # load of edge links
+
+set buffer_size 300; # 300 MTU = 2.7MB
+set rto_min 0.001; # 1ms
+set ecn_thresh 60; # 60 MTU = 540KB, BDP = 625KB
 
 ################ Shared Buffer ##################
-set avg_port_buf 250000; #250KB
+set avg_port_buf 250000; # 250KB
 set edge_port [expr int($fattree_k / 2 + $fattree_k / 2 * $topology_x)]
 set edge_shared_buf [expr $edge_port * $avg_port_buf]
 set core_shared_buf [expr $fattree_k * $avg_port_buf]
@@ -46,17 +46,18 @@ Agent/TCP set dctcp_g_ 0.0625
 Agent/TCP set windowInit_ 16
 Agent/TCP set packetSize_ $packet_size
 Agent/TCP set window_ 1000
-Agent/TCP set slow_start_restart_ false
-Agent/TCP set tcpTick_ 0.000001 ; # 1us should be enough
+Agent/TCP set slow_start_restart_ true
+Agent/TCP set tcpTick_ 0.000001; # 1us should be enough
 Agent/TCP set minrto_ $rto_min
-Agent/TCP set rtxcur_init_ $rto_min ; # initial RTO
-Agent/TCP set numdupacks_ 3 ; # dup ACK threshold
+Agent/TCP set rtxcur_init_ $rto_min; # initial RTO
+Agent/TCP set maxrto_ 64
+Agent/TCP set numdupacks_ 3; # dup ACK threshold
 Agent/TCP set windowOption_ 0
 
 Agent/TCP/FullTcp set nodelay_ true; # disable Nagle
 Agent/TCP/FullTcp set segsize_ $packet_size
-Agent/TCP/FullTcp set segsperack_ 1 ; # ACK frequency
-Agent/TCP/FullTcp set interval_ 0.000006 ; #delayed ACK interval
+Agent/TCP/FullTcp set segsperack_ 1; # ACK frequency
+Agent/TCP/FullTcp set interval_ 0.000006; #delayed ACK interval
 
 ################ Queue #########################
 Queue set limit_ $buffer_size
@@ -74,7 +75,7 @@ Queue/DCTCP set thresh_ $ecn_thresh
 Queue/DCTCP set mean_pktsize_ [expr $packet_size + 40]
 Queue/DCTCP set enable_shared_buf_ true
 Queue/DCTCP set shared_buf_id_ -1
-Queue/DCTCP set alpha_ 1
+Queue/DCTCP set alpha_ 2
 Queue/DCTCP set debug_ false
 
 ################ Multipathing ###########################
@@ -200,24 +201,29 @@ puts "Arrival: Poisson with inter-arrival [expr 1 / $lambda * 1000] ms"
 puts "Average flow size: $mean_flow_size bytes"
 puts "Setting up connections ..."; flush stdout
 
-for {set j 0} {$j < $topology_servers} {incr j} {
-        for {set i 0} {$i < $topology_servers} {incr i} {
-                if {$i != $j} {
-                        #puts "($i, $j) "
-			puts -nonewline "($i, $j) "
-                        set agtagr($i,$j) [new Agent_Aggr_pair]
-                        $agtagr($i,$j) setup $s($i) $s($j) "$i $j" $connections_per_pair "TCP_pair" $source_alg
-                        ## Note that RNG seed should not be zero
-                        $agtagr($i,$j) set_PCarrival_process [expr $lambda / ($topology_servers - 1)] $flow_cdf [expr 17*$i+1244*$j] [expr 33*$i+4369*$j]
-                        $agtagr($i,$j) attach-logfile $flowlog
+set snd_interval [expr $topology_servers / $num_pairs]
 
-                        $ns at 0.1 "$agtagr($i,$j) warmup 0.5 $packet_size"
-                        $ns at 1 "$agtagr($i,$j) init_schedule"
-                } else {
+for {set j 0} {$j < $topology_servers} {incr j} {
+        for {set i 1} {$i <= $num_pairs} {incr i} {
+                set snd_id [expr ($j + $i * $snd_interval) % $topology_servers]
+
+                if {$j == $snd_id} {
+                        puts "Error: $j == $snd_id"
                         flush stdout
+                        exit 0
+                } else {
+                        puts -nonewline "($snd_id $j) "
+                        set agtagr($snd_id,$j) [new Agent_Aggr_pair]
+                        $agtagr($snd_id,$j) setup $s($snd_id) $s($j) "$snd_id $j" $connections_per_pair "TCP_pair" $source_alg
+                        ## Note that RNG seed should not be zero
+                        $agtagr($snd_id,$j) set_PCarrival_process [expr $lambda / $num_pairs] $flow_cdf [expr 17*$snd_id+1244*$j] [expr 33*$snd_id+4369*$j]
+                        $agtagr($snd_id,$j) attach-logfile $flowlog
+
+                        $ns at 0.1 "$agtagr($snd_id,$j) warmup 0.5 $packet_size"
+                        $ns at 1 "$agtagr($snd_id,$j) init_schedule"
                 }
         }
-
+        puts ""
         flush stdout
 }
 
