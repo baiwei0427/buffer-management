@@ -201,7 +201,7 @@ puts "Arrival: Poisson with inter-arrival [expr 1 / $lambda * 1000] ms"
 puts "Average flow size: $mean_flow_size bytes"
 puts "Setting up connections ..."; flush stdout
 
-set snd_interval [expr $topology_servers / $num_pairs]
+set snd_interval [expr $topology_servers / ($num_pairs + 1)]
 
 for {set j 0} {$j < $topology_servers} {incr j} {
         for {set i 1} {$i <= $num_pairs} {incr i} {
