@@ -337,6 +337,7 @@ Agent_Aggr_pair instproc fin_notify {pid bytes fct timeouts} {
 proc finish {} {
         global ns flowlog
         global sim_start
+        global qid queues
 
         $ns flush-trace
         close $flowlog
@@ -344,6 +345,12 @@ proc finish {} {
         set t [clock seconds]
         puts "Simulation Finished!"
         puts "Time [expr $t - $sim_start] sec"
+
+        if { [info exists qid] && $qid > 0} {
+                for {set i 0} {$i < $qid} {incr i} {
+                        puts "$i [$queues($i) set pkt_drop_ecn_] [$queues($i) set pkt_drop_] [$queues($i) set pkt_tot_]"
+                }
+        }
 
         exit 0
 }

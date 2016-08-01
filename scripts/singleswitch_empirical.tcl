@@ -5,12 +5,12 @@ set link_rate 100; #100Gbps
 set mean_link_delay 0.0000002; #0.2us
 set host_delay 0.000012; #12us
 set ports 32
-set connections_per_pair 20
-set load 0.9
+set connections_per_pair 10
+set load 0.8
 
-set static_buf_pkt 333; # 333 MTU = 3MB
+set static_buf_pkt 556; # 556 MTU = 5MB
 set shared_buf 8388608; # 8MB
-set ecn_thresh 60; # 60 MTU = 540KB, BDP = 625KB
+set ecn_thresh 78; # 78 MTU = 700KB, BDP = 875KB (625KB, 1MB)
 
 set flowlog [open singleswitch_flow.tr w]
 set debug_mode 1
@@ -31,7 +31,7 @@ Agent/TCP set ecn_ 1
 Agent/TCP set old_ecn_ 1
 Agent/TCP set dctcp_ true
 Agent/TCP set dctcp_g_ 0.0625
-Agent/TCP set windowInit_ 16
+Agent/TCP set windowInit_ 20
 Agent/TCP set packetSize_ $packet_size
 Agent/TCP set window_ 1000
 Agent/TCP set slow_start_restart_ true
@@ -41,6 +41,7 @@ Agent/TCP set rtxcur_init_ $rto_min; # initial RTO
 Agent/TCP set maxrto_ 64
 Agent/TCP set numdupacks_ 3; # dup ACK threshold
 Agent/TCP set windowOption_ 0
+Agent/TCP set overhead_ 0.00003
 
 Agent/TCP/FullTcp set nodelay_ true; # disable Nagle
 Agent/TCP/FullTcp set segsize_ $packet_size
@@ -65,9 +66,14 @@ Queue/DCTCP set enable_shared_buf_ true
 Queue/DCTCP set shared_buf_id_ -1
 Queue/DCTCP set alpha_ 1
 Queue/DCTCP set debug_ false
+Queue/DCTCP set pkt_tot_ 0
+Queue/DCTCP set pkt_drop_ 0
+Queue/DCTCP set pkt_drop_ecn_ 0
 
 ######################## Topoplgy #########################
 set switch [$ns node]
+
+set qid 0
 
 for {set i 0} {$i < $ports} {incr i} {
         set s($i) [$ns node]
@@ -79,6 +85,9 @@ for {set i 0} {$i < $ports} {incr i} {
         $q set shared_buf_id_ 0
         $q set-shared-buffer 0 $shared_buf
         $q register
+
+        set queues($qid) $q
+        incr qid
 }
 
 ######## print information of shared buffer switches #######
