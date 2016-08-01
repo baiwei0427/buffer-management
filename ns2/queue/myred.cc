@@ -29,6 +29,9 @@ MyRED::MyRED()
 	enable_shared_buf_ = 0;
 	shared_buf_id_ = -1;
 	alpha_ = 1;
+	pkt_tot_ = 0;
+	pkt_drop_ = 0;
+	pkt_drop_ecn_ = 0;
 
 	bind("thresh_", &thresh_);
 	bind("mean_pktsize_", &mean_pktsize_);
@@ -36,6 +39,9 @@ MyRED::MyRED()
 	bind_bool("enable_shared_buf_", &enable_shared_buf_);
 	bind("shared_buf_id_", &shared_buf_id_);
 	bind("alpha_", &alpha_);
+	bind("pkt_tot_", &pkt_tot_);
+	bind("pkt_drop_", &pkt_drop_);
+	bind("pkt_drop_ecn_", &pkt_drop_ecn_);
 }
 
 MyRED::~MyRED()
@@ -94,8 +100,14 @@ void MyRED::ecn_mark(Packet* p)
 
 void MyRED::enque(Packet* p)
 {
+	pkt_tot_++;
+
         if (buffer_overfill(p))
         {
+		pkt_drop_++;
+		/* the packet gets dropped before queue length reaches ECN marking threshold */
+		if (hdr_cmn::access(p)->size() + q_->byteLength() < thresh_ * mean_pktsize_)
+			pkt_drop_ecn_++;
                 drop(p);
                 return;
         }

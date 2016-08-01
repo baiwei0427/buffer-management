@@ -26,6 +26,9 @@ protected:
         int enable_shared_buf_; /* enable shared buffer or not (static buffer) */
         int shared_buf_id_;     /* index of shared buffer to use */
         double alpha_;     /* alpha for DT buffer allocation */
+        int pkt_tot_;   /* total number of packets */
+        int pkt_drop_;  /* total number of packets dropped by the port */
+        int pkt_drop_ecn_;     /* total number of packets dropped when the queue length < ECN marking threshold */
         PacketQueue *q_;        /* underlying (usually) FIFO queue */
 
         static int shared_buf_lim_[SHARED_BUFFER_NUM];  /* shared buffer sizes */
