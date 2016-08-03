@@ -351,7 +351,7 @@ FullTcpAgent::advanceby(int np)
 void
 FullTcpAgent::advance_bytes(int nb)
 {
-        cwnd_ = initial_window();
+    //cwnd_ = initial_window();
 	//
 	// state-specific operations:
 	//	if CLOSED or LISTEN, reset and try a new active open/connect
