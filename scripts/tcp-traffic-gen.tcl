@@ -347,9 +347,16 @@ proc finish {} {
         puts "Time [expr $t - $sim_start] sec"
 
         if { [info exists qid] && $qid > 0} {
+                set drop_ratio 0
                 for {set i 0} {$i < $qid} {incr i} {
-                        puts "$i [$queues($i) set pkt_drop_ecn_] [$queues($i) set pkt_drop_] [$queues($i) set pkt_tot_]"
+                        set pkt_drop_ecn [$queues($i) set pkt_drop_ecn_]
+                        set pkt_drop [$queues($i) set pkt_drop_]
+                        set pkt_tot [$queues($i) set pkt_tot_]
+                        puts "$i $pkt_drop_ecn $pkt_drop $pkt_tot"
+                        set drop_ratio [expr $drop_ratio + ($pkt_drop + 0.0) / $pkt_tot]
                 }
+                set drop_ratio [expr $drop_ratio * 100 / $qid]
+                puts "Overall packet drop ratio: $drop_ratio%"
         }
 
         exit 0
