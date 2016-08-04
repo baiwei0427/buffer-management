@@ -3,7 +3,7 @@ source "tcp-traffic-gen.tcl"
 set ns [new Simulator]
 set sim_start [clock seconds]
 
-if {$argc != 24} {
+if {$argc != 25} {
     puts "wrong number of arguments $argc"
     exit 0
 }
@@ -28,19 +28,20 @@ set mean_flow_size [lindex $argv 11]; #average size of the above distributio
 set enable_ecn [lindex $argv 12];
 set enable_dctcp [lindex $argv 13]
 set init_window [lindex $argv 14]
-set packet_size [lindex $argv 15]; #packet size in bytes
-set rto_min [lindex $argv 16]
+set max_window [lindex $argv 15];
+set packet_size [lindex $argv 16]; #packet size in bytes
+set rto_min [lindex $argv 17]
 
 #### Switch side options
-set switch_alg [lindex $argv 17]
-set static_port_pkt [lindex $argv 18]; #static per-port buffer size in packets
-set shared_port_bytes [lindex $argv 19]; #dynamic per-port average buffer size in bytes
-set enable_shared_buf [lindex $argv 20]; #enable shared buffer management or not
-set dt_alpha [lindex $argv 21]; #alpha for DT algorithm
-set ecn_thresh [lindex $argv 22]; #ECN marking threshold in packets
+set switch_alg [lindex $argv 18]
+set static_port_pkt [lindex $argv 19]; #static per-port buffer size in packets
+set shared_port_bytes [lindex $argv 20]; #dynamic per-port average buffer size in bytes
+set enable_shared_buf [lindex $argv 21]; #enable shared buffer management or not
+set dt_alpha [lindex $argv 22]; #alpha for DT algorithm
+set ecn_thresh [lindex $argv 23]; #ECN marking threshold in packets
 
 ### result file
-set flowlog [open [lindex $argv 23] w]
+set flowlog [open [lindex $argv 24] w]
 
 set debug_mode 1
 set flow_gen 0; #the number of flows that have been generated
@@ -67,8 +68,9 @@ if {$enable_dctcp == 1} {
 
 Agent/TCP set dctcp_g_ 0.0625
 Agent/TCP set windowInit_ $init_window
-Agent/TCP set packetSize_ $packet_size
+Agent/TCP set maxcwnd_ $max_window
 Agent/TCP set window_ 1256
+Agent/TCP set packetSize_ $packet_size
 Agent/TCP set slow_start_restart_ true
 Agent/TCP set tcpTick_ 0.000001; # 1us should be enough
 Agent/TCP set minrto_ $rto_min

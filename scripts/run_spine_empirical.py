@@ -31,6 +31,7 @@ mean_flow_size = 1711250
 enable_ecn = 1
 enable_dctcp = 1
 init_window = 25
+max_window = 150
 packet_size = 8960
 rto_min = 0.005
 
@@ -70,6 +71,7 @@ for load in load_arr:
 			+ str(enable_ecn) + ' '\
 			+ str(enable_dctcp) + ' '\
 			+ str(init_window) + ' '\
+			+ str(max_window) + ' '\
 			+ str(packet_size) + ' '\
 			+ str(rto_min) + ' '\
 			+ str(switch_alg) + ' '\
