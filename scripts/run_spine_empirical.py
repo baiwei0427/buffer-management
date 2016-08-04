@@ -32,7 +32,7 @@ enable_ecn = 1
 enable_dctcp = 1
 init_window = 25
 packet_size = 8960
-rto_min = 0.000005
+rto_min = 0.005
 
 switch_alg = 'DCTCP'
 static_port_pkt = 1111
