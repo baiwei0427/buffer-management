@@ -54,16 +54,8 @@ bool MyRED::buffer_overfill(Packet* p)
 {
 	int len = hdr_cmn::access(p)->size() + q_->byteLength();
 
-	/* static per-port buffer allocation */
-	if (enable_shared_buf_ == 0)
-	{
-		if (len > qlim_ * mean_pktsize_)
-			return true;
-		else
-			return false;
-	}
-	/* dynamic shared buffer allocation */
-	else if (shared_buf_id_ >= 0 && shared_buf_id_ < SHARED_BUFFER_NUM)
+	/* dynamic shared buffer allocation. If buf id is invalid, we use static buffer allocation instead. */
+	if (enable_shared_buf_ && shared_buf_id_ >= 0 && shared_buf_id_ < SHARED_BUFFER_NUM)
 	{
 		int free_buffer = shared_buf_lim_[shared_buf_id_] - shared_buf_len_[shared_buf_id_];
 		int thresh = alpha_ * free_buffer;
@@ -82,10 +74,13 @@ bool MyRED::buffer_overfill(Packet* p)
 			return false;
 		}
 	}
-	/* invalid shared buffer ID */
+	/* static per-port buffer allocation */
 	else
 	{
-		return false;
+		if (len > qlim_ * mean_pktsize_)
+			return true;
+		else
+			return false;
 	}
 }
 
@@ -134,6 +129,8 @@ Packet* MyRED::deque()
  */
 int MyRED::command(int argc, const char*const* argv)
 {
+	Tcl& tcl = Tcl::instance();
+
 	if (argc == 2)
 	{
 		if (strcmp(argv[1], "print") == 0)
@@ -142,8 +139,8 @@ int MyRED::command(int argc, const char*const* argv)
 			{
 				if (shared_buf_lim_[i] > 0)
 				{
-					printf("shared buffer %d: limit %d occupancy %d members %d\n",
-						i, shared_buf_lim_[i], shared_buf_len_[i], shared_buf_mem_[i]);
+					tcl.evalf("puts \"Shared buffer %d: limit %d occupancy %d members %d\"",
+						  i, shared_buf_lim_[i], shared_buf_len_[i], shared_buf_mem_[i]);
 				}
 			}
 
@@ -169,18 +166,18 @@ int MyRED::command(int argc, const char*const* argv)
 				shared_buf_lim_[id] = size;
 				if (debug_)
 				{
-					printf("Set shared buffer %d size to %d\n", id, size);
+					tcl.evalf("puts \"Set shared buffer %d size to %d\"", id, size);
 				}
 			}
 			else
 			{
 				if (id < 0 || id >= SHARED_BUFFER_NUM)
 				{
-					printf("Invalid shared buffer ID %d\n", id);
+					tcl.evalf("puts \"Invalid shared buffer ID %d\"", id);
 				}
 				if (size <= 0)
 				{
-					printf("Invalid shared buffer size %d\n", size);
+					tcl.evalf("puts \"Invalid shared buffer size %d\"", size);
 				}
 			}
 
