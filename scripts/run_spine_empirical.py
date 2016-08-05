@@ -44,13 +44,14 @@ ecn_thresh = 90
 
 ns_path = '/home/wei/buffer_management/ns-allinone-2.35/ns-2.35/ns'
 sim_script = 'spine_empirical.tcl'
+special_str = ''
 
 topology_x = float(topology_spt) / topology_spines
 print 'Oversubscription ratio ' + str(topology_x)
 
 for load in load_arr:
 	# directory name: load_[load]
-	directory_name = 'load_%d' % int(load * 100)
+	directory_name = '%sload_%d' % (special_str, int(load * 100))
 	# transfer core load to edge load
 	edge_load = load / topology_x
 
