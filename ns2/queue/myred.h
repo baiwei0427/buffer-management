@@ -23,6 +23,8 @@ protected:
         int thresh_;    /* ECN marking threshold in packet */
         int mean_pktsize_;      /* packet size in bytes */
         int debug_;     /* print necessary debug information or not */
+        int enable_dynamic_ecn_;        /* enable dynamic ECN marking threshold */
+        int ecn_headroom_;      /* headroom buffer in bytes */
         int enable_shared_buf_; /* enable shared buffer or not (static buffer) */
         int shared_buf_id_;     /* index of shared buffer to use */
         double alpha_;     /* alpha for DT buffer allocation */

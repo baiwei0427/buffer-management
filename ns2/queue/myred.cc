@@ -23,22 +23,33 @@ int MyRED::shared_buf_mem_[SHARED_BUFFER_NUM] = {0};
 MyRED::MyRED()
 {
 	q_ = new PacketQueue();
+
+	debug_ = 0;
+
 	thresh_ = 60;
 	mean_pktsize_ = 9000;
-	debug_ = 0;
+	enable_dynamic_ecn_ = 0;
+	ecn_headroom_ = 1000000;
+
 	enable_shared_buf_ = 0;
 	shared_buf_id_ = -1;
 	alpha_ = 1;
+
 	pkt_tot_ = 0;
 	pkt_drop_ = 0;
 	pkt_drop_ecn_ = 0;
 
+	bind_bool("debug_", &debug_);
+
 	bind("thresh_", &thresh_);
 	bind("mean_pktsize_", &mean_pktsize_);
-	bind_bool("debug_", &debug_);
+	bind_bool("enable_dynamic_ecn_", &enable_dynamic_ecn_);
+	bind("ecn_headroom_", &ecn_headroom_);
+
 	bind_bool("enable_shared_buf_", &enable_shared_buf_);
 	bind("shared_buf_id_", &shared_buf_id_);
 	bind("alpha_", &alpha_);
+
 	bind("pkt_tot_", &pkt_tot_);
 	bind("pkt_drop_", &pkt_drop_);
 	bind("pkt_drop_ecn_", &pkt_drop_ecn_);
@@ -52,6 +63,7 @@ MyRED::~MyRED()
 /* return true if the buffer is overfilled and packet should get dropped */
 bool MyRED::buffer_overfill(Packet* p)
 {
+	Tcl& tcl = Tcl::instance();
 	int len = hdr_cmn::access(p)->size() + q_->byteLength();
 
 	/* dynamic shared buffer allocation. If buf id is invalid, we use static buffer allocation instead. */
@@ -61,7 +73,7 @@ bool MyRED::buffer_overfill(Packet* p)
 		int thresh = alpha_ * free_buffer;
 		if (debug_)
 		{
-			printf("dynamic threshold: %f * %d = %d\n", alpha_, free_buffer, thresh);
+			tcl.evalf("puts \"dynamic threshold: %f * %d = %d\"", alpha_, free_buffer, thresh);
 		}
 
 		if (len > thresh)
@@ -88,8 +100,20 @@ void MyRED::ecn_mark(Packet* p)
 {
 	hdr_flags* hf = hdr_flags::access(p);
 	int len = hdr_cmn::access(p)->size() + q_->byteLength();
+	int static_thresh = thresh_ * mean_pktsize_;
+	int dynamic_thresh = ecn_headroom_ * (1 + alpha_);
+	int buffer_thresh = -1;
 
-	if (len > thresh_ * mean_pktsize_ && hf->ect())
+	/* dynamic buffer allocation */
+	if (enable_shared_buf_ && shared_buf_id_ >= 0 && shared_buf_id_ < SHARED_BUFFER_NUM)
+		buffer_thresh = alpha_ * (shared_buf_lim_[shared_buf_id_] - shared_buf_len_[shared_buf_id_]);
+
+	/* We only handle ECT traffic */
+	if (!hf->ect())
+		return;
+
+	/* Compound ECN */
+	if (len > static_thresh || (enable_dynamic_ecn_ && buffer_thresh >= 0 && buffer_thresh - len < dynamic_thresh))
 		hf->ce() = 1;
 }
 

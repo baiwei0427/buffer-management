@@ -41,10 +41,12 @@ shared_port_bytes = 8 * 1024 * 1024 / 32
 enable_shared_buf = 1
 dt_alpha = 1
 ecn_thresh = 90
+enable_dynamic_ecn = 1
+ecn_heardoom = 1024 * 1024
 
 ns_path = '/home/wei/buffer_management/ns-allinone-2.35/ns-2.35/ns'
 sim_script = 'spine_empirical.tcl'
-special_str = ''
+special_str = 'dynamic_'
 
 topology_x = float(topology_spt) / topology_spines
 print 'Oversubscription ratio ' + str(topology_x)
@@ -81,8 +83,10 @@ for load in load_arr:
 			+ str(enable_shared_buf) + ' '\
 			+ str(dt_alpha) + ' '\
 			+ str(ecn_thresh) + ' '\
-			+str('./' + directory_name + '/flow.tr') + '  >'\
-			+str('./' + directory_name + '/logFile.tr')
+			+ str(enable_dynamic_ecn) + ' '\
+			+ str(ecn_heardoom) + ' '\
+			+ str('./' + directory_name + '/flow.tr') + '  >'\
+			+ str('./' + directory_name + '/logFile.tr')
 	q.put([cmd, directory_name])
 
 #Create all worker threads

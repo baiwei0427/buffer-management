@@ -3,7 +3,7 @@ source "tcp-traffic-gen.tcl"
 set ns [new Simulator]
 set sim_start [clock seconds]
 
-if {$argc != 25} {
+if {$argc != 27} {
     puts "wrong number of arguments $argc"
     exit 0
 }
@@ -39,9 +39,11 @@ set shared_port_bytes [lindex $argv 20]; #dynamic per-port average buffer size i
 set enable_shared_buf [lindex $argv 21]; #enable shared buffer management or not
 set dt_alpha [lindex $argv 22]; #alpha for DT algorithm
 set ecn_thresh [lindex $argv 23]; #ECN marking threshold in packets
+set enable_dynamic_ecn [lindex $argv 24]; #enable shared buffer based dynamic ECN marking
+set ecn_headroom [lindex $argv 25]
 
 ### result file
-set flowlog [open [lindex $argv 24] w]
+set flowlog [open [lindex $argv 26] w]
 
 set debug_mode 1
 set flow_gen 0; #the number of flows that have been generated
@@ -98,9 +100,20 @@ Queue/RED set maxthresh_ $ecn_thresh
 if {$enable_shared_buf == 1} {
         Queue/DCTCP set enable_shared_buf_ true
         puts "Enable shared buffer"
+} else {
+        Queue/DCTCP set enable_shared_buf_ false
 }
+
+if {$enable_dynamic_ecn == 1} {
+        Queue/DCTCP set enable_dynamic_ecn_ true
+        puts "Enable dynamic ECN marking"
+} else {
+        Queue/DCTCP set enable_dynamic_ecn_ false
+}
+
 Queue/DCTCP set thresh_ $ecn_thresh
 Queue/DCTCP set mean_pktsize_ [expr $packet_size + 40]
+Queue/DCTCP set ecn_headroom_ $ecn_headroom
 Queue/DCTCP set shared_buf_id_ -1
 Queue/DCTCP set alpha_ $dt_alpha
 Queue/DCTCP set debug_ false
