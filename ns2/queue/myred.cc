@@ -5,6 +5,10 @@
 #include "flags.h"
 #include "myred.h"
 
+#ifndef max
+    #define max(a,b) ((a) > (b) ? (a) : (b))
+#endif
+
 static class MyREDClass : public TclClass
 {
 	public:
@@ -101,19 +105,21 @@ void MyRED::ecn_mark(Packet* p)
 	hdr_flags* hf = hdr_flags::access(p);
 	int len = hdr_cmn::access(p)->size() + q_->byteLength();
 	int static_thresh = thresh_ * mean_pktsize_;
-	int dynamic_thresh = ecn_headroom_ * (1 + alpha_);
-	int buffer_thresh = -1;
+	int dynamic_thresh = -1;
 
 	/* dynamic buffer allocation */
 	if (enable_shared_buf_ && shared_buf_id_ >= 0 && shared_buf_id_ < SHARED_BUFFER_NUM)
-		buffer_thresh = alpha_ * (shared_buf_lim_[shared_buf_id_] - shared_buf_len_[shared_buf_id_]);
+	{
+		int buffer_thresh = alpha_ * (shared_buf_lim_[shared_buf_id_] - shared_buf_len_[shared_buf_id_]);
+		dynamic_thresh = max(buffer_thresh - ecn_headroom_ * (1 + alpha_), 2 * mean_pktsize_);
+	}
 
 	/* We only handle ECT traffic */
 	if (!hf->ect())
 		return;
 
 	/* Compound ECN */
-	if (len > static_thresh || (enable_dynamic_ecn_ && buffer_thresh >= 0 && buffer_thresh - len < dynamic_thresh))
+	if (len > static_thresh || (enable_dynamic_ecn_ && dynamic_thresh >= 0 && len > dynamic_thresh))
 		hf->ce() = 1;
 }
 
