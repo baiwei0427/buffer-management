@@ -2,15 +2,15 @@ source "tcp-traffic-gen.tcl"
 
 set ns [new Simulator]
 set link_rate 100; #100Gbps
-set mean_link_delay 0.0000002; #0.2us
-set host_delay 0.000012; #12us
+set mean_link_delay 0.000001; #1us
+set host_delay 0.000015; #15us
 set ports 32
 set connections_per_pair 10
 set load 0.8
 
 set static_buf_pkt 556; # 556 MTU = 5MB
 set shared_buf 8388608; # 8MB
-set ecn_thresh 78; # 78 MTU = 700KB, BDP = 875KB (625KB, 1MB)
+set ecn_thresh 70; # BDP = 800KB, RTT = 64us
 
 set flowlog [open singleswitch_flow.tr w]
 set debug_mode 1
@@ -21,7 +21,7 @@ set flow_fin 0; #the number of flows that have finished
 set packet_size 8960; #Jumbo packet (9KB)
 set source_alg Agent/TCP/FullTcp/Sack
 set switch_alg DCTCP
-set rto_min 0.005; # 1ms
+set rto_min 0.005; # 5ms
 
 set flow_cdf CDF_dctcp.tcl
 set mean_flow_size 1711250
@@ -32,16 +32,15 @@ Agent/TCP set old_ecn_ 1
 Agent/TCP set dctcp_ true
 Agent/TCP set dctcp_g_ 0.0625
 Agent/TCP set windowInit_ 20
-Agent/TCP set packetSize_ $packet_size
+Agent/TCP set maxcwnd_ 150
 Agent/TCP set window_ 1000
+Agent/TCP set packetSize_ $packet_size
 Agent/TCP set slow_start_restart_ true
 Agent/TCP set tcpTick_ 0.000001; # 1us should be enough
 Agent/TCP set minrto_ $rto_min
 Agent/TCP set rtxcur_init_ $rto_min; # initial RTO
 Agent/TCP set maxrto_ 64
-Agent/TCP set numdupacks_ 3; # dup ACK threshold
 Agent/TCP set windowOption_ 0
-Agent/TCP set overhead_ 0.00003
 
 Agent/TCP/FullTcp set nodelay_ true; # disable Nagle
 Agent/TCP/FullTcp set segsize_ $packet_size
@@ -60,12 +59,15 @@ Queue/RED set mark_p_ 1.0
 Queue/RED set thresh_ $ecn_thresh
 Queue/RED set maxthresh_ $ecn_thresh
 
+Queue/DCTCP set debug_ false
 Queue/DCTCP set thresh_ $ecn_thresh
 Queue/DCTCP set mean_pktsize_ [expr $packet_size + 40]
+Queue/DCTCP set enable_dynamic_ecn_ true
+Queue/DCTCP set headroom_ 0.4
+Queue/DCTCP set min_buffer_ 18000
 Queue/DCTCP set enable_shared_buf_ true
 Queue/DCTCP set shared_buf_id_ -1
 Queue/DCTCP set alpha_ 1
-Queue/DCTCP set debug_ false
 Queue/DCTCP set pkt_tot_ 0
 Queue/DCTCP set pkt_drop_ 0
 Queue/DCTCP set pkt_drop_ecn_ 0
