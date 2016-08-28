@@ -20,17 +20,22 @@ protected:
         bool buffer_overfill(Packet*);  /* whether the switch buffer is overfilled */
         void ecn_mark(Packet*); /* perform ECN marking */
 
+        int debug_;     /* print necessary debug information or not */
+
         int thresh_;    /* ECN marking threshold in packet */
         int mean_pktsize_;      /* packet size in bytes */
-        int debug_;     /* print necessary debug information or not */
         int enable_dynamic_ecn_;        /* enable dynamic ECN marking threshold */
-        int ecn_headroom_;      /* headroom buffer in bytes */
+        double headroom_;      /* headroom parameter */
+        int min_buffer_;        /* minimum guarantee buffer */
+
         int enable_shared_buf_; /* enable shared buffer or not (static buffer) */
         int shared_buf_id_;     /* index of shared buffer to use */
         double alpha_;     /* alpha for DT buffer allocation */
+
         int pkt_tot_;   /* total number of packets */
         int pkt_drop_;  /* total number of packets dropped by the port */
         int pkt_drop_ecn_;     /* total number of packets dropped when the queue length < ECN marking threshold */
+
         PacketQueue *q_;        /* underlying (usually) FIFO queue */
 
         static int shared_buf_lim_[SHARED_BUFFER_NUM];  /* shared buffer sizes */

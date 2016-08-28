@@ -33,7 +33,8 @@ MyRED::MyRED()
 	thresh_ = 60;
 	mean_pktsize_ = 9000;
 	enable_dynamic_ecn_ = 0;
-	ecn_headroom_ = 1000000;
+	headroom_ = 0.5;
+        min_buffer_ = 18000;
 
 	enable_shared_buf_ = 0;
 	shared_buf_id_ = -1;
@@ -48,7 +49,8 @@ MyRED::MyRED()
 	bind("thresh_", &thresh_);
 	bind("mean_pktsize_", &mean_pktsize_);
 	bind_bool("enable_dynamic_ecn_", &enable_dynamic_ecn_);
-	bind("ecn_headroom_", &ecn_headroom_);
+	bind("headroom_", &headroom_);
+        bind("min_buffer_", &min_buffer_);
 
 	bind_bool("enable_shared_buf_", &enable_shared_buf_);
 	bind("shared_buf_id_", &shared_buf_id_);
@@ -105,13 +107,16 @@ void MyRED::ecn_mark(Packet* p)
 	hdr_flags* hf = hdr_flags::access(p);
 	int len = hdr_cmn::access(p)->size() + q_->byteLength();
 	int static_thresh = thresh_ * mean_pktsize_;
-	int dynamic_thresh = -1;
+	double dynamic_thresh = -1;
 
 	/* dynamic buffer allocation */
 	if (enable_shared_buf_ && shared_buf_id_ >= 0 && shared_buf_id_ < SHARED_BUFFER_NUM)
 	{
-		int buffer_thresh = alpha_ * (shared_buf_lim_[shared_buf_id_] - shared_buf_len_[shared_buf_id_]);
-		dynamic_thresh = max(buffer_thresh - ecn_headroom_ * (1 + alpha_), 2 * mean_pktsize_);
+		double buffer_thresh = alpha_ * (shared_buf_lim_[shared_buf_id_] - shared_buf_len_[shared_buf_id_]);
+                dynamic_thresh = headroom_ * buffer_thresh;
+                //printf("headroom_ %f dynamic_thresh %d\n", headroom_, int(dynamic_thresh));
+		dynamic_thresh = max(dynamic_thresh, min_buffer_);
+                //printf("new dynamic_thresh %d\n", int(dynamic_thresh));
 	}
 
 	/* We only handle ECT traffic */
