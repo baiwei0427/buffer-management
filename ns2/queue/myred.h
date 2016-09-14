@@ -18,13 +18,15 @@ protected:
         void enque(Packet*);
 	Packet* deque();
         bool buffer_overfill(Packet*);  /* whether the switch buffer is overfilled */
-        void ecn_mark(Packet*); /* perform ECN marking */
+        void red_mark(Packet*); /* RED/ECN marking */
+        void buffer_mark(Packet*);      /* buffer-aware ECN marking */
 
         int debug_;     /* print necessary debug information or not */
 
         int thresh_;    /* ECN marking threshold in packet */
         int mean_pktsize_;      /* packet size in bytes */
-        int enable_dynamic_ecn_;        /* enable dynamic ECN marking threshold */
+
+        int enable_buffer_ecn_;        /* enable buffer-aware ECN */
         double headroom_;      /* headroom parameter */
         int min_buffer_;        /* minimum guarantee buffer */
 

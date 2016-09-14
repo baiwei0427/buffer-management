@@ -32,8 +32,9 @@ MyRED::MyRED()
 
 	thresh_ = 60;
 	mean_pktsize_ = 9000;
-	enable_dynamic_ecn_ = 0;
-	headroom_ = 0.5;
+
+	enable_buffer_ecn_ = 0;
+	headroom_ = 0.375;
         min_buffer_ = 18000;
 
 	enable_shared_buf_ = 0;
@@ -48,7 +49,8 @@ MyRED::MyRED()
 
 	bind("thresh_", &thresh_);
 	bind("mean_pktsize_", &mean_pktsize_);
-	bind_bool("enable_dynamic_ecn_", &enable_dynamic_ecn_);
+
+	bind_bool("enable_buffer_ecn_", &enable_buffer_ecn_);
 	bind("headroom_", &headroom_);
         bind("min_buffer_", &min_buffer_);
 
@@ -102,31 +104,34 @@ bool MyRED::buffer_overfill(Packet* p)
 	}
 }
 
-void MyRED::ecn_mark(Packet* p)
+void MyRED::red_mark(Packet* p)
 {
-	hdr_flags* hf = hdr_flags::access(p);
-	int len = hdr_cmn::access(p)->size() + q_->byteLength();
-	int static_thresh = thresh_ * mean_pktsize_;
-	double dynamic_thresh = -1;
+        hdr_flags* hf = hdr_flags::access(p);
+        int len = hdr_cmn::access(p)->size() + q_->byteLength();
 
-	/* dynamic buffer allocation */
-	if (enable_shared_buf_ && shared_buf_id_ >= 0 && shared_buf_id_ < SHARED_BUFFER_NUM)
-	{
-		double buffer_thresh = alpha_ * (shared_buf_lim_[shared_buf_id_] - shared_buf_len_[shared_buf_id_]);
+        if (hf->ect() && len > thresh_ * mean_pktsize_)
+                hf->ce() = 1;
+}
+
+void MyRED::buffer_mark(Packet* p)
+{
+        hdr_flags* hf = hdr_flags::access(p);
+        int len = hdr_cmn::access(p)->size() + q_->byteLength();
+        double dynamic_thresh = -1;
+
+        if (enable_shared_buf_ && shared_buf_id_ >= 0 && shared_buf_id_ < SHARED_BUFFER_NUM)
+        {
+                double buffer_thresh = alpha_ * (shared_buf_lim_[shared_buf_id_] - shared_buf_len_[shared_buf_id_]);
                 dynamic_thresh = headroom_ * buffer_thresh;
                 //printf("headroom_ %f dynamic_thresh %d\n", headroom_, int(dynamic_thresh));
-		dynamic_thresh = max(dynamic_thresh, min_buffer_);
+                dynamic_thresh = max(dynamic_thresh, min_buffer_);
                 //printf("new dynamic_thresh %d\n", int(dynamic_thresh));
-	}
+        }
 
-	/* We only handle ECT traffic */
-	if (!hf->ect())
-		return;
-
-	/* Compound ECN */
-	if (len > static_thresh || (enable_dynamic_ecn_ && dynamic_thresh >= 0 && len > dynamic_thresh))
-		hf->ce() = 1;
+        if (hf->ect() && dynamic_thresh >= 0 && len > dynamic_thresh)
+                hf->ce() = 1;
 }
+
 
 void MyRED::enque(Packet* p)
 {
@@ -135,14 +140,14 @@ void MyRED::enque(Packet* p)
         if (buffer_overfill(p))
         {
 		pkt_drop_++;
-		/* the packet gets dropped before queue length reaches ECN marking threshold */
+		/* the packet gets dropped before RED/ECN reacts */
 		if (hdr_cmn::access(p)->size() + q_->byteLength() < thresh_ * mean_pktsize_)
 			pkt_drop_ecn_++;
                 drop(p);
                 return;
         }
 
-	ecn_mark(p);
+	red_mark(p);
         q_->enque(p);
 }
 
@@ -154,6 +159,10 @@ Packet* MyRED::deque()
 	{
 		shared_buf_len_[shared_buf_id_] -= hdr_cmn::access(p)->size();
 	}
+
+        /* buffer-aware ECN marking */
+        if (p && enable_buffer_ecn_)
+                buffer_mark(p);
 
         return p;
 }
