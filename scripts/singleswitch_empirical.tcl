@@ -62,8 +62,8 @@ Queue/RED set maxthresh_ $ecn_thresh
 Queue/DCTCP set debug_ false
 Queue/DCTCP set thresh_ $ecn_thresh
 Queue/DCTCP set mean_pktsize_ [expr $packet_size + 40]
-Queue/DCTCP set enable_dynamic_ecn_ true
-Queue/DCTCP set headroom_ 0.4
+Queue/DCTCP set enable_buffer_ecn_ true
+Queue/DCTCP set headroom_ 0.375
 Queue/DCTCP set min_buffer_ 18000
 Queue/DCTCP set enable_shared_buf_ true
 Queue/DCTCP set shared_buf_id_ -1
