@@ -20,6 +20,8 @@ protected:
         bool buffer_overfill(Packet*);  /* whether the switch buffer is overfilled */
         void red_mark(Packet*); /* RED/ECN marking */
         void buffer_mark(Packet*);      /* buffer-aware ECN marking */
+        void trace_shared_qlen();       /* trace the occupancy of the shared buffer */
+        void trace_port_qlen(); /* trace per-port buffer occupancy */
 
         int debug_;     /* print necessary debug information or not */
 
@@ -39,6 +41,9 @@ protected:
         int pkt_drop_ecn_;     /* total number of packets dropped when the queue length < ECN marking threshold */
 
         PacketQueue *q_;        /* underlying (usually) FIFO queue */
+
+	Tcl_Channel shared_qlen_tchan_;        /* place to write shared buffer occupancy records */
+	Tcl_Channel port_qlen_tchan_;  /* place to write per-port buffer occupancy records */
 
         static int shared_buf_lim_[SHARED_BUFFER_NUM];  /* shared buffer sizes */
         static int shared_buf_len_[SHARED_BUFFER_NUM];  /* shared buffer occupancies in bytes*/
