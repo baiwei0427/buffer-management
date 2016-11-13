@@ -18,7 +18,8 @@ protected:
         void enque(Packet*);
 	Packet* deque();
         bool buffer_overfill(Packet*);  /* whether the switch buffer is overfilled */
-        void red_mark(Packet*); /* RED/ECN marking */
+        void port_mark(Packet*); /* per port ECN marking */
+        void sp_mark(Packet*);  /*per service pool ECN marking */
         void buffer_mark(Packet*);      /* buffer-aware ECN marking */
         void trace_shared_qlen();       /* trace the occupancy of the shared buffer */
         void trace_port_qlen(); /* trace per-port buffer occupancy */
@@ -31,6 +32,9 @@ protected:
         int enable_buffer_ecn_;        /* enable buffer-aware ECN */
         double headroom_;      /* headroom parameter */
         int min_buffer_;        /* minimum guarantee buffer */
+
+        int enable_sp_ecn_; /* enable per service pool ECN marking */
+        int sp_thresh_;     /* per service pool marking threshold in packet */
 
         int enable_shared_buf_; /* enable shared buffer or not (static buffer) */
         int shared_buf_id_;     /* index of shared buffer to use */

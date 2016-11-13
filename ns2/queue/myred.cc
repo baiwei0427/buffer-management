@@ -37,6 +37,9 @@ MyRED::MyRED()
 	headroom_ = 0.375;
         min_buffer_ = 18000;
 
+        enable_sp_ecn_ = 0;
+        sp_thresh_ = 0;
+
 	enable_shared_buf_ = 0;
 	shared_buf_id_ = -1;
 	alpha_ = 1;
@@ -56,6 +59,9 @@ MyRED::MyRED()
 	bind_bool("enable_buffer_ecn_", &enable_buffer_ecn_);
 	bind("headroom_", &headroom_);
         bind("min_buffer_", &min_buffer_);
+
+        bind_bool("enable_sp_ecn_", &enable_sp_ecn_);
+        bind("sp_thresh_", &sp_thresh_);
 
 	bind_bool("enable_shared_buf_", &enable_shared_buf_);
 	bind("shared_buf_id_", &shared_buf_id_);
@@ -100,12 +106,23 @@ bool MyRED::buffer_overfill(Packet* p)
 	}
 }
 
-void MyRED::red_mark(Packet* p)
+void MyRED::port_mark(Packet* p)
 {
         hdr_flags* hf = hdr_flags::access(p);
         int len = hdr_cmn::access(p)->size() + q_->byteLength();
 
         if (hf->ect() && len > thresh_ * mean_pktsize_)
+                hf->ce() = 1;
+}
+
+void MyRED::sp_mark(Packet* p)
+{
+        hdr_flags* hf = hdr_flags::access(p);
+
+        if (!enable_shared_buf_ || shared_buf_id_ < 0 || shared_buf_id_ >= SHARED_BUFFER_NUM)
+                return;
+
+        if (hf->ect() && shared_buf_len_[shared_buf_id_] > sp_thresh_)
                 hf->ce() = 1;
 }
 
@@ -131,18 +148,17 @@ void MyRED::buffer_mark(Packet* p)
 void MyRED::enque(Packet* p)
 {
 	pkt_tot_++;
-
+        
+        /* if the packet gets dropped */
         if (buffer_overfill(p)) {
 		pkt_drop_++;
 		/* the packet gets dropped before RED/ECN reacts */
 		if (hdr_cmn::access(p)->size() + q_->byteLength() < thresh_ * mean_pktsize_)
 			pkt_drop_ecn_++;
                 drop(p);
-                return;
+        } else {
+                q_->enque(p);
         }
-
-	red_mark(p);
-        q_->enque(p);
 }
 
 Packet* MyRED::deque()
@@ -153,13 +169,21 @@ Packet* MyRED::deque()
 		shared_buf_len_[shared_buf_id_] -= hdr_cmn::access(p)->size();
 	}
 
+        if (!p)
+                goto out;
+
+        /* per-port ECN/RED marking */
+        port_mark(p);
+        /* per-service-pool ECN/RED marking */
+        if (enable_sp_ecn_)
+                sp_mark(p);
         /* buffer-aware ECN marking */
-        if (p && enable_buffer_ecn_)
+        if (enable_buffer_ecn_)
                 buffer_mark(p);
 
+out:
         trace_port_qlen();
         trace_shared_qlen();
-
         return p;
 }
 
