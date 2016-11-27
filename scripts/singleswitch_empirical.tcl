@@ -3,16 +3,17 @@ source "tcp-traffic-gen.tcl"
 set ns [new Simulator]
 set link_rate 100; #100Gbps
 set mean_link_delay 0.000001; #1us
-set host_delay 0.000015; #15us
+set host_delay 0.000012; #12us
 set ports 32
 set connections_per_pair 10
-set load 0.8
+set load 0.9
 
-set static_buf_pkt 556; # 556 MTU = 5MB
+set static_buf_pkt 1111; # 1111 MTU = 10MB
 set shared_buf 8388608; # 8MB
-set ecn_thresh 70; # BDP = 800KB, RTT = 64us
+set ecn_thresh 72; # BDP = 650KB
 
-set flowlog [open singleswitch_flow.tr w]
+set flowlog [open singleswitch_buffer_ecn_flow.tr w]
+set shared_qlenfile [open shared_qlenfile.tr w]
 set debug_mode 1
 set sim_start [clock seconds]
 set flow_tot 100000; #total number of flows to generate
@@ -25,14 +26,16 @@ set rto_min 0.005; # 5ms
 
 set flow_cdf CDF_dctcp.tcl
 set mean_flow_size 1711250
+#set flow_cdf CDF_vl2.tcl
+#set mean_flow_size 12658199
 
 ################## TCP #########################
 Agent/TCP set ecn_ 1
 Agent/TCP set old_ecn_ 1
-Agent/TCP set dctcp_ true
+Agent/TCP set dctcp_ false
 Agent/TCP set dctcp_g_ 0.0625
-Agent/TCP set windowInit_ 20
-Agent/TCP set maxcwnd_ 150
+Agent/TCP set windowInit_ 16
+Agent/TCP set maxcwnd_ 100
 Agent/TCP set window_ 1000
 Agent/TCP set packetSize_ $packet_size
 Agent/TCP set slow_start_restart_ true
@@ -62,11 +65,11 @@ Queue/RED set maxthresh_ $ecn_thresh
 Queue/DCTCP set debug_ false
 Queue/DCTCP set thresh_ $ecn_thresh
 Queue/DCTCP set mean_pktsize_ [expr $packet_size + 40]
+Queue/DCTCP set enable_sp_ecn_ false
+Queue/DCTCP set sp_thresh_ [expr $shared_buf * 0.9]
 Queue/DCTCP set enable_buffer_ecn_ true
-Queue/DCTCP set headroom_ 0.375
-Queue/DCTCP set min_buffer_ 18000
+Queue/DCTCP set headroom_ 0.9
 Queue/DCTCP set enable_shared_buf_ true
-Queue/DCTCP set shared_buf_id_ -1
 Queue/DCTCP set alpha_ 1
 Queue/DCTCP set pkt_tot_ 0
 Queue/DCTCP set pkt_drop_ 0
@@ -84,9 +87,14 @@ for {set i 0} {$i < $ports} {incr i} {
         ######### configure shared buffer for edge to server links #######
         set L [$ns link $switch $s($i)]
         set q [$L set queue_]
-        $q set shared_buf_id_ 0
-        $q set-shared-buffer 0 $shared_buf
+        $q set switch_id_ 0
+        $q set port_id_ $qid
         $q register
+
+        if {$i == 0} {
+                $q set-shared-buffer 0 $shared_buf
+                $q trace-shared-qlen $shared_qlenfile
+        }
 
         set queues($qid) $q
         incr qid
