@@ -4,8 +4,8 @@
 #include "queue.h"
 
 /* MyRED: a simple version of Random Early Detection (RED) for DCTCP-style ECN marking */
-
-#define SHARED_BUFFER_NUM 1024  /* total number of shared buffers */
+#define NUM_SWITCH 128  /* maximum number of switches (shared buffers) */
+#define NUM_PORT_PER_SWITCH 32 /* maximum number of ports per switch */
 
 class MyRED : public Queue
 {
@@ -26,18 +26,19 @@ protected:
 
         int debug_;     /* print necessary debug information or not */
 
+        int port_id_;   /* switch port ID. Within the same switch, different ports have different IDs. */
+        int switch_id_; /* switch ID */
+
         int thresh_;    /* ECN marking threshold in packet */
         int mean_pktsize_;      /* packet size in bytes */
 
         int enable_buffer_ecn_;        /* enable buffer-aware ECN */
         double headroom_;      /* headroom parameter */
-        int min_buffer_;        /* minimum guarantee buffer */
 
         int enable_sp_ecn_; /* enable per service pool ECN marking */
         int sp_thresh_;     /* per service pool marking threshold in packet */
 
         int enable_shared_buf_; /* enable shared buffer or not (static buffer) */
-        int shared_buf_id_;     /* index of shared buffer to use */
         double alpha_;     /* alpha for DT buffer allocation */
 
         int pkt_tot_;   /* total number of packets */
@@ -49,9 +50,10 @@ protected:
 	Tcl_Channel shared_qlen_tchan_;        /* place to write shared buffer occupancy records */
 	Tcl_Channel port_qlen_tchan_;  /* place to write per-port buffer occupancy records */
 
-        static int shared_buf_lim_[SHARED_BUFFER_NUM];  /* shared buffer sizes */
-        static int shared_buf_len_[SHARED_BUFFER_NUM];  /* shared buffer occupancies in bytes*/
-        static int shared_buf_mem_[SHARED_BUFFER_NUM];  /* number of members (queue/port) belonging to a shared buffer */
+        static int port_len_[NUM_SWITCH * NUM_PORT_PER_SWITCH];      /* per port buffer occupancies */
+        static int shared_buf_lim_[NUM_SWITCH];  /* per switch shared buffer sizes */
+        static int shared_buf_len_[NUM_SWITCH];  /* per switch shared buffer occupancies */
+        static int shared_buf_mem_[NUM_SWITCH];  /* number of members (queue/port) belonging to a shared buffer */
 };
 
 #endif

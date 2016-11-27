@@ -20,9 +20,10 @@ static class MyREDClass : public TclClass
 } class_myred;
 
 /* Initialize static members as 0 */
-int MyRED::shared_buf_lim_[SHARED_BUFFER_NUM] = {0};
-int MyRED::shared_buf_len_[SHARED_BUFFER_NUM] = {0};
-int MyRED::shared_buf_mem_[SHARED_BUFFER_NUM] = {0};
+int MyRED::port_len_[NUM_SWITCH * NUM_PORT_PER_SWITCH] = {0};
+int MyRED::shared_buf_lim_[NUM_SWITCH] = {0};
+int MyRED::shared_buf_len_[NUM_SWITCH] = {0};
+int MyRED::shared_buf_mem_[NUM_SWITCH] = {0};
 
 MyRED::MyRED()
 {
@@ -30,18 +31,19 @@ MyRED::MyRED()
 
 	debug_ = 0;
 
+        port_id_ = -1;
+        switch_id_ = -1;
+
 	thresh_ = 60;
 	mean_pktsize_ = 9000;
 
 	enable_buffer_ecn_ = 0;
-	headroom_ = 0.375;
-        min_buffer_ = 18000;
+	headroom_ = 0.9;
 
         enable_sp_ecn_ = 0;
         sp_thresh_ = 0;
 
 	enable_shared_buf_ = 0;
-	shared_buf_id_ = -1;
 	alpha_ = 1;
 
 	pkt_tot_ = 0;
@@ -53,18 +55,19 @@ MyRED::MyRED()
 
 	bind_bool("debug_", &debug_);
 
+        bind("port_id_", &port_id_);
+        bind("switch_id_", &switch_id_);
+
 	bind("thresh_", &thresh_);
 	bind("mean_pktsize_", &mean_pktsize_);
 
 	bind_bool("enable_buffer_ecn_", &enable_buffer_ecn_);
 	bind("headroom_", &headroom_);
-        bind("min_buffer_", &min_buffer_);
 
         bind_bool("enable_sp_ecn_", &enable_sp_ecn_);
         bind("sp_thresh_", &sp_thresh_);
 
 	bind_bool("enable_shared_buf_", &enable_shared_buf_);
-	bind("shared_buf_id_", &shared_buf_id_);
 	bind("alpha_", &alpha_);
 
 	bind("pkt_tot_", &pkt_tot_);
@@ -83,20 +86,24 @@ bool MyRED::buffer_overfill(Packet* p)
 	Tcl& tcl = Tcl::instance();
 	int len = hdr_cmn::access(p)->size() + q_->byteLength();
 
-	/* dynamic shared buffer allocation. If buf id is invalid, we use static buffer allocation instead. */
-	if (enable_shared_buf_ && shared_buf_id_ >= 0 && shared_buf_id_ < SHARED_BUFFER_NUM) {
-		int free_buffer = shared_buf_lim_[shared_buf_id_] - shared_buf_len_[shared_buf_id_];
+	/* dynamic shared buffer allocation */
+	if (enable_shared_buf_ && switch_id_ >= 0 && switch_id_ < NUM_SWITCH) {
+
+		int free_buffer = shared_buf_lim_[switch_id_] - shared_buf_len_[switch_id_];
 		int thresh = alpha_ * free_buffer;
-		if (debug_) {
+
+                if (debug_) {
 			tcl.evalf("puts \"dynamic threshold: %f * %d = %d\"", alpha_, free_buffer, thresh);
 		}
 
 		if (len > thresh) {
 			return true;
 		} else {
-			shared_buf_len_[shared_buf_id_] += hdr_cmn::access(p)->size();
+			shared_buf_len_[switch_id_] += hdr_cmn::access(p)->size();
+                        port_len_[port_id_ + switch_id_ * NUM_PORT_PER_SWITCH] = len;
 			return false;
 		}
+
         /* static per-port buffer allocation */
 	} else {
 		if (len > qlim_ * mean_pktsize_)
@@ -106,6 +113,7 @@ bool MyRED::buffer_overfill(Packet* p)
 	}
 }
 
+/* per-port ECN/RED marking */
 void MyRED::port_mark(Packet* p)
 {
         hdr_flags* hf = hdr_flags::access(p);
@@ -115,32 +123,43 @@ void MyRED::port_mark(Packet* p)
                 hf->ce() = 1;
 }
 
+/* per-service-pool ECN/RED marking */
 void MyRED::sp_mark(Packet* p)
 {
         hdr_flags* hf = hdr_flags::access(p);
 
-        if (!enable_shared_buf_ || shared_buf_id_ < 0 || shared_buf_id_ >= SHARED_BUFFER_NUM)
+        if (!enable_shared_buf_ || switch_id_ < 0 || switch_id_ >= NUM_SWITCH)
                 return;
 
-        if (hf->ect() && shared_buf_len_[shared_buf_id_] > sp_thresh_)
+        if (hf->ect() && shared_buf_len_[switch_id_] > sp_thresh_)
                 hf->ce() = 1;
 }
 
+/* buffer-aware ECN marking */
 void MyRED::buffer_mark(Packet* p)
 {
         hdr_flags* hf = hdr_flags::access(p);
-        int len = hdr_cmn::access(p)->size() + q_->byteLength();
-        double dynamic_thresh = -1;
+        bool mark = false;
+        int port_global_id, i;
+        double buffer_thresh;
 
-        if (enable_shared_buf_ && shared_buf_id_ >= 0 && shared_buf_id_ < SHARED_BUFFER_NUM) {
-                double buffer_thresh = alpha_ * (shared_buf_lim_[shared_buf_id_] - shared_buf_len_[shared_buf_id_]);
-                dynamic_thresh = headroom_ * buffer_thresh;
-                //printf("headroom_ %f dynamic_thresh %d\n", headroom_, int(dynamic_thresh));
-                dynamic_thresh = max(dynamic_thresh, min_buffer_);
-                //printf("new dynamic_thresh %d\n", int(dynamic_thresh));
+        /* not enable shared buffer management */
+        if (!enable_shared_buf_ || switch_id_ < 0 || switch_id_ >= NUM_SWITCH)
+                return;
+
+        buffer_thresh = alpha_ * (shared_buf_lim_[switch_id_] - shared_buf_len_[switch_id_]);
+        /* check each port of this switch, if any port is overloaded ... */
+        for (i = 0; i < NUM_PORT_PER_SWITCH; i++) {
+                /* global switch port ID */
+                port_global_id = switch_id_ * NUM_PORT_PER_SWITCH + i;
+                /* port buffer occupancy > headroom_ * buffer threshold */
+                if (port_len_[port_global_id] > buffer_thresh * headroom_) {
+                        mark = true;
+                        break;
+                }
         }
 
-        if (hf->ect() && dynamic_thresh >= 0 && len > dynamic_thresh)
+        if (mark && hf->ect())
                 hf->ce() = 1;
 }
 
@@ -148,7 +167,7 @@ void MyRED::buffer_mark(Packet* p)
 void MyRED::enque(Packet* p)
 {
 	pkt_tot_++;
-        
+
         /* if the packet gets dropped */
         if (buffer_overfill(p)) {
 		pkt_drop_++;
@@ -165,8 +184,10 @@ Packet* MyRED::deque()
 {
 	Packet *p = q_->deque();
 
-	if (p && enable_shared_buf_ && shared_buf_id_ >= 0 && shared_buf_id_ < SHARED_BUFFER_NUM) {
-		shared_buf_len_[shared_buf_id_] -= hdr_cmn::access(p)->size();
+	if (enable_shared_buf_ && switch_id_ >= 0 && switch_id_ < NUM_SWITCH) {
+                port_len_[port_id_ + switch_id_ * NUM_PORT_PER_SWITCH] = q_->byteLength();
+                if (p)
+                        shared_buf_len_[switch_id_] -= hdr_cmn::access(p)->size();
 	}
 
         if (!p)
@@ -199,11 +220,11 @@ void MyRED::trace_port_qlen()
 
 void MyRED::trace_shared_qlen()
 {
-        if (!shared_qlen_tchan_ || shared_buf_id_ < 0 || shared_buf_id_ >= SHARED_BUFFER_NUM)
+        if (!shared_qlen_tchan_ || switch_id_ < 0 || switch_id_ >= NUM_SWITCH)
                 return;
 
         char wrk[100] = {0};
-        sprintf(wrk, "%g, %d\n", Scheduler::instance().clock(), shared_buf_len_[shared_buf_id_]);
+        sprintf(wrk, "%g, %d\n", Scheduler::instance().clock(), shared_buf_len_[switch_id_]);
         Tcl_Write(shared_qlen_tchan_, wrk, strlen(wrk));
 }
 
@@ -221,7 +242,7 @@ int MyRED::command(int argc, const char*const* argv)
 
 	if (argc == 2) {
 		if (strcmp(argv[1], "print") == 0) {
-			for (int i = 0; i < SHARED_BUFFER_NUM; i++) {
+			for (int i = 0; i < NUM_SWITCH; i++) {
 				if (shared_buf_lim_[i] > 0) {
 					tcl.evalf("puts \"Shared buffer %d: limit %d occupancy %d members %d\"",
 						  i, shared_buf_lim_[i], shared_buf_len_[i], shared_buf_mem_[i]);
@@ -230,8 +251,8 @@ int MyRED::command(int argc, const char*const* argv)
 
 			return (TCL_OK);
 		} else if (strcmp(argv[1], "register") == 0) {
-			if (shared_buf_id_ >= 0 && shared_buf_id_ < SHARED_BUFFER_NUM)
-				shared_buf_mem_[shared_buf_id_]++;
+			if (switch_id_ >= 0 && switch_id_ < NUM_SWITCH)
+				shared_buf_mem_[switch_id_]++;
 
 			return (TCL_OK);
 		}
@@ -262,13 +283,13 @@ int MyRED::command(int argc, const char*const* argv)
 			int id =  atoi(argv[2]);
 			int size = atoi(argv[3]);
 
-			if (id >= 0 && id < SHARED_BUFFER_NUM && size > 0) {
+			if (id >= 0 && id < NUM_SWITCH && size > 0) {
 				shared_buf_lim_[id] = size;
 				if (debug_) {
 					tcl.evalf("puts \"Set shared buffer %d size to %d\"", id, size);
 				}
 			} else {
-				if (id < 0 || id >= SHARED_BUFFER_NUM) {
+				if (id < 0 || id >= NUM_SWITCH) {
 					tcl.evalf("puts \"Invalid shared buffer ID %d\"", id);
 				} if (size <= 0) {
 					tcl.evalf("puts \"Invalid shared buffer size %d\"", size);
