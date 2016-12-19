@@ -1,42 +1,95 @@
 source "tcp-traffic-gen.tcl"
 
 set ns [new Simulator]
-set link_rate 100; #100Gbps
-set mean_link_delay 0.000001; #1us
-set host_delay 0.000012; #12us
-set ports 32
-set connections_per_pair 10
-set load 0.9
 
-set static_buf_pkt 1111; # 1111 MTU = 10MB
-set shared_buf 8388608; # 8MB
-set ecn_thresh 72; # BDP = 650KB
+if {$argc != 23} {
+    puts "wrong number of arguments $argc"
+    exit 0
+}
 
-set flowlog [open singleswitch_buffer_ecn_flow.tr w]
-set shared_qlenfile [open shared_qlenfile.tr w]
+#basic setting
+set link_rate [lindex $argv 0]
+set mean_link_delay [lindex $argv 1]
+set host_delay [lindex $argv 2]
+set ports [lindex $argv 3]; #number of switch ports
+set packet_size [lindex $argv 4];       #MTU - IP header - TCP header
+
+#switch buffer management
+set static_buf_pkt [lindex $argv 5];    #static buffer size in packets
+set enable_shared_buf [lindex $argv 6]
+set num_shared_buf [lindex $argv 7];    #number of shared buffers of a chip
+set shared_buf_size [lindex $argv 8];   #size of a shared buffer in bytes
+set dt_alpha [lindex $argv 9];  #alpha for dynamic threshold (DT) algorithm
+
+#ECN marking
+set port_ecn_thresh [lindex $argv 10];   #per-port ECN marking threshold
+set sp_ecn_thresh [lindex $argv 11];    #per-service-pool ECN marking threeshold
+set enable_sp_ecn [lindex $argv 12];    #enable per-service-pool ECN marking
+
+#transport setting
+set enable_dctcp [lindex $argv 13];
+set init_window [lindex $argv 14]
+set max_window [lindex $argv 15]
+set rto_min [lindex $argv 16]
+
+#traffic
+set flow_tot [lindex $argv 17]; #total number of flows to run
+set connections_per_pair [lindex $argv 18]
+set load [lindex $argv 19]
+set flow_cdf [lindex $argv 20]
+set mean_flow_size [lindex $argv 21]
+
+#log file
+set flowlog [open [lindex $argv 22] w]
+
+#print all arguments
+puts "link speed: $link_rate Gbps"
+puts "mean link delay: [expr $mean_link_delay * 1000000] us"
+puts "host delay: [expr $host_delay * 1000000] us"
+puts "number of switch ports: $ports"
+puts "packet size: $packet_size"
+puts "static switch buffer size: $static_buf_pkt packets"
+puts "enable shared buffer management: $enable_shared_buf"
+puts "number of share buffers: $num_shared_buf"
+puts "size of a share buffer: $shared_buf_size bytes"
+puts "alpha for dynamic threshold algorithm: $dt_alpha"
+puts "per-port ECN marking threshold: $port_ecn_thresh packets"
+puts "per-service-pool ECN marking threshold: $sp_ecn_thresh packets"
+puts "enable per-service-pool ECN marking: $enable_sp_ecn"
+puts "enable DCTCP: $enable_dctcp"
+puts "TCP initial window: $init_window"
+puts "TCP maximum window: $max_window"
+puts "TCP minimum RTO: [expr $rto_min * 1000000] us"
+puts "total number of flows to run: $flow_tot"
+puts "number of connections per pair: $connections_per_pair"
+puts "average network utilization: $load"
+puts "flow size CDF file: $flow_cdf"
+puts "average flow size: $mean_flow_size bytes"
+
 set debug_mode 1
 set sim_start [clock seconds]
-set flow_tot 100000; #total number of flows to generate
 set flow_gen 0; #the number of flows that have been generated
 set flow_fin 0; #the number of flows that have finished
-set packet_size 8960; #Jumbo packet (9KB)
-set source_alg Agent/TCP/FullTcp/Sack
 set switch_alg DCTCP
-set rto_min 0.005; # 5ms
+set source_alg Agent/TCP/FullTcp/Sack
 
-set flow_cdf CDF_dctcp.tcl
-set mean_flow_size 1711250
+#set packet_size 8960; #Jumbo packet (9KB)
+
+#set rto_min 0.005; # 5ms
+
+#set flow_cdf CDF_dctcp.tcl
+#set mean_flow_size 1711250
 #set flow_cdf CDF_vl2.tcl
 #set mean_flow_size 12658199
 
 ################## TCP #########################
+Agent/TCP set dctcp_ $enable_dctcp
 Agent/TCP set ecn_ 1
 Agent/TCP set old_ecn_ 1
-Agent/TCP set dctcp_ false
 Agent/TCP set dctcp_g_ 0.0625
-Agent/TCP set windowInit_ 16
-Agent/TCP set maxcwnd_ 100
-Agent/TCP set window_ 1000
+Agent/TCP set windowInit_ $init_window
+Agent/TCP set maxcwnd_ $max_window
+Agent/TCP set window_ $max_window
 Agent/TCP set packetSize_ $packet_size
 Agent/TCP set slow_start_restart_ true
 Agent/TCP set tcpTick_ 0.000001; # 1us should be enough
@@ -52,28 +105,20 @@ Agent/TCP/FullTcp set interval_ 0.000006; #delayed ACK interval
 
 ################ Queue #########################
 Queue set limit_ $static_buf_pkt
-Queue/RED set bytes_ false
-Queue/RED set queue_in_bytes_ true
-Queue/RED set mean_pktsize_ [expr $packet_size + 40]
-Queue/RED set setbit_ true
-Queue/RED set gentle_ false
-Queue/RED set q_weight_ 1.0
-Queue/RED set mark_p_ 1.0
-Queue/RED set thresh_ $ecn_thresh
-Queue/RED set maxthresh_ $ecn_thresh
 
 Queue/DCTCP set debug_ false
-Queue/DCTCP set thresh_ $ecn_thresh
 Queue/DCTCP set mean_pktsize_ [expr $packet_size + 40]
-Queue/DCTCP set enable_sp_ecn_ false
-Queue/DCTCP set sp_thresh_ [expr $shared_buf * 0.9]
-Queue/DCTCP set enable_buffer_ecn_ true
-Queue/DCTCP set headroom_ 0.9
-Queue/DCTCP set enable_shared_buf_ true
-Queue/DCTCP set alpha_ 1
+
+Queue/DCTCP set enable_shared_buf_ $enable_shared_buf
+Queue/DCTCP set alpha_ $dt_alpha
 Queue/DCTCP set pkt_tot_ 0
 Queue/DCTCP set pkt_drop_ 0
 Queue/DCTCP set pkt_drop_ecn_ 0
+
+Queue/DCTCP set thresh_ $port_ecn_thresh
+Queue/DCTCP set enable_sp_ecn_ $enable_sp_ecn
+Queue/DCTCP set sp_thresh_ $sp_ecn_thresh
+Queue/DCTCP set enable_buffer_ecn_ false
 
 ######################## Topoplgy #########################
 set switch [$ns node]
@@ -87,14 +132,10 @@ for {set i 0} {$i < $ports} {incr i} {
         ######### configure shared buffer for edge to server links #######
         set L [$ns link $switch $s($i)]
         set q [$L set queue_]
-        $q set switch_id_ 0
+        $q set switch_id_ [expr $i % $num_shared_buf]
+        $q set-shared-buffer [expr $i % $num_shared_buf] $shared_buf_size
         $q set port_id_ $qid
         $q register
-
-        if {$i == 0} {
-                $q set-shared-buffer 0 $shared_buf
-                $q trace-shared-qlen $shared_qlenfile
-        }
 
         set queues($qid) $q
         incr qid
