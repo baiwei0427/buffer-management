@@ -45,6 +45,8 @@ MyRED::MyRED()
 
 	enable_shared_buf_ = 0;
 	alpha_ = 1;
+        reserve_buf_lim_ = 256 * 1024;
+        reserve_buf_len_ = 0;
 
 	pkt_tot_ = 0;
 	pkt_drop_ = 0;
@@ -69,6 +71,7 @@ MyRED::MyRED()
 
 	bind_bool("enable_shared_buf_", &enable_shared_buf_);
 	bind("alpha_", &alpha_);
+        bind("reserve_buf_lim_", &reserve_buf_lim_);
 
 	bind("pkt_tot_", &pkt_tot_);
 	bind("pkt_drop_", &pkt_drop_);
@@ -84,11 +87,22 @@ MyRED::~MyRED()
 bool MyRED::buffer_overfill(Packet* p)
 {
 	Tcl& tcl = Tcl::instance();
+        hdr_flags *hf = hdr_flags::access(p);
 	int len = hdr_cmn::access(p)->size() + q_->byteLength();
 
 	/* dynamic shared buffer allocation */
 	if (enable_shared_buf_ && switch_id_ >= 0 && switch_id_ < NUM_SWITCH) {
 
+                /* check the static reserve buffer first */
+                if (len + reserve_buf_len_ <= reserve_buf_lim_) {
+                        hf->pri_ = 1;
+                        reserve_buf_len_ += len;
+                        return false;
+                } else {
+                        hf->pri_ = 0;
+                }
+
+                /* check the dynamic shared buffer */
 		int free_buffer = shared_buf_lim_[switch_id_] - shared_buf_len_[switch_id_];
 		int thresh = alpha_ * free_buffer;
 
@@ -182,16 +196,21 @@ void MyRED::enque(Packet* p)
 
 Packet* MyRED::deque()
 {
-	Packet *p = q_->deque();
-
-	if (enable_shared_buf_ && switch_id_ >= 0 && switch_id_ < NUM_SWITCH) {
-                port_len_[port_id_ + switch_id_ * NUM_PORT_PER_SWITCH] = q_->byteLength();
-                if (p)
-                        shared_buf_len_[switch_id_] -= hdr_cmn::access(p)->size();
-	}
-
+        Packet *p = q_->deque();
         if (!p)
-                goto out;
+                return NULL;
+
+        int len = hdr_cmn::access(p)->size();
+        if (enable_shared_buf_ && switch_id_ >= 0 && switch_id_ < NUM_SWITCH) {
+                port_len_[port_id_ + switch_id_ * NUM_PORT_PER_SWITCH] = q_->byteLength();
+
+                /* if the packet uses static reserve buffer */
+                if (hdr_flags::access(p)->pri_ == 1) {
+                        reserve_buf_len_ -= len;
+                } else {
+                        shared_buf_len_[switch_id_] -= len;
+                }
+	}
 
         /* per-port ECN/RED marking */
         port_mark(p);
@@ -202,7 +221,6 @@ Packet* MyRED::deque()
         if (enable_buffer_ecn_)
                 buffer_mark(p);
 
-out:
         trace_port_qlen();
         trace_shared_qlen();
         return p;

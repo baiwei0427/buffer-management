@@ -40,6 +40,8 @@ protected:
 
         int enable_shared_buf_; /* enable shared buffer or not (static buffer) */
         double alpha_;     /* alpha for DT buffer allocation */
+        int reserve_buf_lim_;   /* static reserved buffer in bytes */
+        int reserve_buf_len_;   /* occupancy of static reserved buffer */
 
         int pkt_tot_;   /* total number of packets */
         int pkt_drop_;  /* total number of packets dropped by the port */
