@@ -22,18 +22,19 @@ packet_size = 8960
 static_buf_pkt = 1111   #10MB buffer for NIC
 enable_shared_buf = 'true'
 num_shared_buf = 4
-shared_buf_size = 4 * 1024 * 1024   #4MB
+shared_buf_size = 3 * 1024 * 1024   #3MB
 dt_alpha = 4
+reserve_buf_size = 128 * 1024   #128KB per port
 port_ecn_thresh = 80
-sp_ecn_thresh = 4 * 1024 * 1024 - 2.5 * 1024 * 1024 / dt_alpha
+sp_ecn_thresh = shared_buf_size - (2.5 * 1024 * 1024 - reserve_buf_size) / dt_alpha
 sp_ecn_schemes = ['true', 'false']
 enable_dctcp = 'true'
-init_window = 16
+init_window = 20
 max_window = 125
 rto_min = 0.005
 flow_tot = 200000
 connections_per_pair = 10
-loads = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+loads = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 flow_cdf = 'CDF_dctcp.tcl'
 mean_flow_size = 1711250
 
@@ -55,8 +56,8 @@ for ecn_scheme in sp_ecn_schemes:
         # simulation command
         cmd = ns_path + ' ' + sim_script + ' '\
             + str(link_rate) + ' '\
-			+ str(mean_link_delay) + ' '\
-			+ str(host_delay) + ' '\
+            + str(mean_link_delay) + ' '\
+            + str(host_delay) + ' '\
             + str(ports) + ' '\
             + str(packet_size) + ' '\
             + str(static_buf_pkt) + ' '\
@@ -64,6 +65,7 @@ for ecn_scheme in sp_ecn_schemes:
             + str(num_shared_buf) + ' '\
             + str(shared_buf_size) + ' '\
             + str(dt_alpha) + ' '\
+            + str(reserve_buf_size) + ' '\
             + str(port_ecn_thresh) + ' '\
             + str(sp_ecn_thresh) + ' '\
             + str(ecn_scheme) + ' '\
@@ -76,8 +78,8 @@ for ecn_scheme in sp_ecn_schemes:
             + str(load) + ' '\
             + str(flow_cdf) + ' '\
             + str(mean_flow_size) + ' '\
-			+ str('./' + dir_name + '/flow.tr') + '  >'\
-			+ str('./' + dir_name + '/logFile.tr')
+            + str('./' + dir_name + '/flow.tr') + '  >'\
+            + str('./' + dir_name + '/logFile.tr')
         q.put([cmd, dir_name])
 
 #Create all worker threads

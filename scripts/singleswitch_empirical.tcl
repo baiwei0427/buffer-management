@@ -2,7 +2,7 @@ source "tcp-traffic-gen.tcl"
 
 set ns [new Simulator]
 
-if {$argc != 23} {
+if {$argc != 24} {
     puts "wrong number of arguments $argc"
     exit 0
 }
@@ -20,27 +20,28 @@ set enable_shared_buf [lindex $argv 6]
 set num_shared_buf [lindex $argv 7];    #number of shared buffers of a chip
 set shared_buf_size [lindex $argv 8];   #size of a shared buffer in bytes
 set dt_alpha [lindex $argv 9];  #alpha for dynamic threshold (DT) algorithm
+set reserve_buf_size [lindex $argv 10];  #per-port static reserved buffer
 
 #ECN marking
-set port_ecn_thresh [lindex $argv 10];   #per-port ECN marking threshold
-set sp_ecn_thresh [lindex $argv 11];    #per-service-pool ECN marking threeshold
-set enable_sp_ecn [lindex $argv 12];    #enable per-service-pool ECN marking
+set port_ecn_thresh [lindex $argv 11];   #per-port ECN marking threshold
+set sp_ecn_thresh [lindex $argv 12];    #per-service-pool ECN marking threeshold
+set enable_sp_ecn [lindex $argv 13];    #enable per-service-pool ECN marking
 
 #transport setting
-set enable_dctcp [lindex $argv 13];
-set init_window [lindex $argv 14]
-set max_window [lindex $argv 15]
-set rto_min [lindex $argv 16]
+set enable_dctcp [lindex $argv 14];
+set init_window [lindex $argv 15]
+set max_window [lindex $argv 16]
+set rto_min [lindex $argv 17]
 
 #traffic
-set flow_tot [lindex $argv 17]; #total number of flows to run
-set connections_per_pair [lindex $argv 18]
-set load [lindex $argv 19]
-set flow_cdf [lindex $argv 20]
-set mean_flow_size [lindex $argv 21]
+set flow_tot [lindex $argv 18]; #total number of flows to run
+set connections_per_pair [lindex $argv 19]
+set load [lindex $argv 20]
+set flow_cdf [lindex $argv 21]
+set mean_flow_size [lindex $argv 22]
 
 #log file
-set flowlog [open [lindex $argv 22] w]
+set flowlog [open [lindex $argv 23] w]
 
 #print all arguments
 puts "link speed: $link_rate Gbps"
@@ -53,6 +54,7 @@ puts "enable shared buffer management: $enable_shared_buf"
 puts "number of share buffers: $num_shared_buf"
 puts "size of a share buffer: $shared_buf_size bytes"
 puts "alpha for dynamic threshold algorithm: $dt_alpha"
+puts "size of per-port reserved buffer: $reserve_buf_size bytes"
 puts "per-port ECN marking threshold: $port_ecn_thresh packets"
 puts "per-service-pool ECN marking threshold: $sp_ecn_thresh packets"
 puts "enable per-service-pool ECN marking: $enable_sp_ecn"
@@ -111,6 +113,7 @@ Queue/DCTCP set mean_pktsize_ [expr $packet_size + 40]
 
 Queue/DCTCP set enable_shared_buf_ $enable_shared_buf
 Queue/DCTCP set alpha_ $dt_alpha
+Queue/DCTCP set reserve_buf_lim_ $reserve_buf_size
 Queue/DCTCP set pkt_tot_ 0
 Queue/DCTCP set pkt_drop_ 0
 Queue/DCTCP set pkt_drop_ecn_ 0
@@ -124,6 +127,7 @@ Queue/DCTCP set enable_buffer_ecn_ false
 set switch [$ns node]
 
 set qid 0
+set ports_per_buffer [expr $ports / $num_shared_buf]
 
 for {set i 0} {$i < $ports} {incr i} {
         set s($i) [$ns node]
@@ -132,8 +136,8 @@ for {set i 0} {$i < $ports} {incr i} {
         ######### configure shared buffer for edge to server links #######
         set L [$ns link $switch $s($i)]
         set q [$L set queue_]
-        $q set switch_id_ [expr $i % $num_shared_buf]
-        $q set-shared-buffer [expr $i % $num_shared_buf] $shared_buf_size
+        $q set switch_id_ [expr $i / $ports_per_buffer]
+        $q set-shared-buffer [expr $i / $ports_per_buffer] $shared_buf_size
         $q set port_id_ $qid
         $q register
 
@@ -153,7 +157,8 @@ puts "Setting up connections ..."; flush stdout
 
 for {set j 0} {$j < $ports} {incr j} {
         for {set i 0} {$i < $ports} {incr i} {
-                if {$j != $i} {
+                if {$j != $i && $j < $ports_per_buffer} {
+                        ##sender s(i), receiver s(j)
                         puts -nonewline "($i $j) "
                         set agtagr($i,$j) [new Agent_Aggr_pair]
                         $agtagr($i,$j) setup $s($i) $s($j) "$i $j" $connections_per_pair "TCP_pair" $source_alg
