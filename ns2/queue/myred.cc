@@ -97,6 +97,10 @@ bool MyRED::buffer_overfill(Packet* p)
                 if (len + reserve_buf_len_ <= reserve_buf_lim_) {
                         hf->pri_ = 1;
                         reserve_buf_len_ += len;
+                        if (debug_) {
+                                tcl.evalf("puts \"reserved buffer length: %d\"", reserve_buf_len_);
+                        }
+
                         return false;
                 } else {
                         hf->pri_ = 0;
@@ -232,7 +236,13 @@ void MyRED::trace_port_qlen()
                 return;
 
         char wrk[100] = {0};
-        sprintf(wrk, "%g, %d\n", Scheduler::instance().clock(), q_->byteLength());
+        int buffer_thresh = qlim_ * mean_pktsize_;
+        if (enable_shared_buf_ && switch_id_ >= 0 && switch_id_ < NUM_SWITCH) {
+                buffer_thresh = alpha_ * (shared_buf_lim_[switch_id_] - shared_buf_len_[switch_id_]) + reserve_buf_lim_;
+        }
+
+        //[time] [port buffer occupancy] [buffer threshold]
+        sprintf(wrk, "%g %d %d\n", Scheduler::instance().clock(), q_->byteLength(), buffer_thresh);
         Tcl_Write(port_qlen_tchan_, wrk, strlen(wrk));
 }
 
@@ -242,7 +252,7 @@ void MyRED::trace_shared_qlen()
                 return;
 
         char wrk[100] = {0};
-        sprintf(wrk, "%g, %d\n", Scheduler::instance().clock(), shared_buf_len_[switch_id_]);
+        sprintf(wrk, "%g %d\n", Scheduler::instance().clock(), shared_buf_len_[switch_id_]);
         Tcl_Write(shared_qlen_tchan_, wrk, strlen(wrk));
 }
 
