@@ -20,19 +20,19 @@ host_delay = 0.000019   #18us
 ports = 32
 packet_size = 8960
 static_buf_pkt = 1111   #10MB buffer for NIC
-enable_shared_buf = 'true'
+enable_shared_buf = 'false'
 num_shared_buf = 4
 shared_buf_size = 3 * 1024 * 1024   #3MB
 dt_alpha = 4
 reserve_buf_size = 128 * 1024   #128KB per port
 port_ecn_thresh = 80
 sp_ecn_thresh = shared_buf_size - (2.5 * 1024 * 1024 - reserve_buf_size) / dt_alpha
-sp_ecn_schemes = ['true', 'false']
+sp_ecn_schemes = ['false']
 enable_dctcp = 'true'
 init_window = 20
 max_window = 125
 rto_min = 0.005
-flow_tot = 200000
+flow_tot = 100000
 connections_per_pair = 10
 loads = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 flow_cdf = 'CDF_dctcp.tcl'
@@ -44,10 +44,17 @@ sim_script = 'singleswitch_empirical.tcl'
 for ecn_scheme in sp_ecn_schemes:
     for load in loads:
         scheme = ''
+
         if enable_dctcp == 'true':
             scheme = 'dctcp'
         else:
             scheme = 'tcp'
+
+        if enable_shared_buf == 'true': #enable shared buffer
+            scheme += '_shared'
+        else:
+            scheme += '_static'
+
         if ecn_scheme == 'true':    #enable per-service-pool ECN
             scheme += '_sp'
 
@@ -78,7 +85,9 @@ for ecn_scheme in sp_ecn_schemes:
             + str(load) + ' '\
             + str(flow_cdf) + ' '\
             + str(mean_flow_size) + ' '\
-            + str('./' + dir_name + '/flow.tr') + '  >'\
+            + str('./' + dir_name + '/flow.tr') + ' '\
+            + str('./' + dir_name + '/port_qlen.tr') + ' '\
+            + str('./' + dir_name + '/shared_qlen.tr') + ' >'\
             + str('./' + dir_name + '/logFile.tr')
         q.put([cmd, dir_name])
 

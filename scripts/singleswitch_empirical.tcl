@@ -2,7 +2,7 @@ source "tcp-traffic-gen.tcl"
 
 set ns [new Simulator]
 
-if {$argc != 24} {
+if {$argc != 26} {
     puts "wrong number of arguments $argc"
     exit 0
 }
@@ -42,6 +42,8 @@ set mean_flow_size [lindex $argv 22]
 
 #log file
 set flowlog [open [lindex $argv 23] w]
+set port_qlen_log [open [lindex $argv 24] w]
+set shared_qlen_log [open [lindex $argv 25] w]
 
 #print all arguments
 puts "link speed: $link_rate Gbps"
@@ -56,7 +58,7 @@ puts "size of a share buffer: $shared_buf_size bytes"
 puts "alpha for dynamic threshold algorithm: $dt_alpha"
 puts "size of per-port reserved buffer: $reserve_buf_size bytes"
 puts "per-port ECN marking threshold: $port_ecn_thresh packets"
-puts "per-service-pool ECN marking threshold: $sp_ecn_thresh packets"
+puts "per-service-pool ECN marking threshold: $sp_ecn_thresh bytes"
 puts "enable per-service-pool ECN marking: $enable_sp_ecn"
 puts "enable DCTCP: $enable_dctcp"
 puts "TCP initial window: $init_window"
@@ -140,6 +142,11 @@ for {set i 0} {$i < $ports} {incr i} {
         $q set-shared-buffer [expr $i / $ports_per_buffer] $shared_buf_size
         $q set port_id_ $qid
         $q register
+
+        if {$i == 0} {
+                $q trace-port-qlen $port_qlen_log
+                $q trace-shared-qlen $shared_qlen_log
+        }
 
         set queues($qid) $q
         incr qid
