@@ -2,7 +2,7 @@ source "tcp-traffic-gen.tcl"
 
 set ns [new Simulator]
 
-if {$argc != 26} {
+if {$argc != 27} {
     puts "wrong number of arguments $argc"
     exit 0
 }
@@ -34,16 +34,17 @@ set max_window [lindex $argv 16]
 set rto_min [lindex $argv 17]
 
 #traffic
-set flow_tot [lindex $argv 18]; #total number of flows to run
-set connections_per_pair [lindex $argv 19]
-set load [lindex $argv 20]
-set flow_cdf [lindex $argv 21]
-set mean_flow_size [lindex $argv 22]
+set receivers [lindex $argv 18]; #number of receivers, the rest hosts are senders
+set flow_tot [lindex $argv 19]; #total number of flows to run
+set connections_per_pair [lindex $argv 20]
+set load [lindex $argv 21]
+set flow_cdf [lindex $argv 22]
+set mean_flow_size [lindex $argv 23]
 
 #log file
-set flowlog [open [lindex $argv 23] w]
-set port_qlen_log [open [lindex $argv 24] w]
-set shared_qlen_log [open [lindex $argv 25] w]
+set flowlog [open [lindex $argv 24] w]
+set port_qlen_log [open [lindex $argv 25] w]
+set shared_qlen_log [open [lindex $argv 26] w]
 
 #print all arguments
 puts "link speed: $link_rate Gbps"
@@ -64,11 +65,15 @@ puts "enable DCTCP: $enable_dctcp"
 puts "TCP initial window: $init_window"
 puts "TCP maximum window: $max_window"
 puts "TCP minimum RTO: [expr $rto_min * 1000000] us"
+puts "number of receivers: $receivers, number of senders: [expr $ports - $receivers]"
 puts "total number of flows to run: $flow_tot"
 puts "number of connections per pair: $connections_per_pair"
 puts "average network utilization: $load"
 puts "flow size CDF file: $flow_cdf"
 puts "average flow size: $mean_flow_size bytes"
+puts "flow log file [lindex $argv 24]"
+puts "port buffer log file [lindex $argv 25]"
+puts "shared buffer log file [lindex $argv 26]"
 
 set debug_mode 1
 set sim_start [clock seconds]
@@ -162,22 +167,21 @@ puts "Arrival: Poisson with inter-arrival [expr 1 / $lambda * 1000] ms"
 puts "Average flow size: $mean_flow_size bytes"
 puts "Setting up connections ..."; flush stdout
 
-for {set j 0} {$j < $ports} {incr j} {
-        for {set i 0} {$i < $ports} {incr i} {
-                if {$j != $i && $j < $ports_per_buffer} {
-                        ##sender s(i), receiver s(j)
-                        puts -nonewline "($i $j) "
-                        set agtagr($i,$j) [new Agent_Aggr_pair]
-                        $agtagr($i,$j) setup $s($i) $s($j) "$i $j" $connections_per_pair "TCP_pair" $source_alg
-                        ## Note that RNG seed should not be zero
-                        $agtagr($i,$j) set_PCarrival_process [expr $lambda / ($ports - 1)] $flow_cdf [expr 17*$i+1244*$j] [expr 33*$i+4369*$j]
-                        $agtagr($i,$j) attach-logfile $flowlog
+#s[0] ... s[receivers - 1] are receivers
+#s[receivers] .... s[ports - 1] are senders
+for {set j 0} {$j < $receivers} {incr j} {
+        for {set i $receivers} {$i < $ports} {incr i} {
+                ##sender s(i), receiver s(j)
+                puts -nonewline "($i $j) "
+                set agtagr($i,$j) [new Agent_Aggr_pair]
+                $agtagr($i,$j) setup $s($i) $s($j) "$i $j" $connections_per_pair "TCP_pair" $source_alg
+                ## Note that RNG seed should not be zero
+                $agtagr($i,$j) set_PCarrival_process [expr $lambda / ($ports - $receivers)] $flow_cdf [expr 17*$i+1244*$j] [expr 33*$i+4369*$j]
+                $agtagr($i,$j) attach-logfile $flowlog
 
-                        $ns at 0.1 "$agtagr($i,$j) warmup 0.5 $packet_size"
-                        $ns at 1 "$agtagr($i,$j) init_schedule"
-                }
+                $ns at 0.1 "$agtagr($i,$j) warmup 0.5 $packet_size"
+                $ns at 1 "$agtagr($i,$j) init_schedule"
         }
-        puts ""
         flush stdout
 }
 

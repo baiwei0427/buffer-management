@@ -32,6 +32,7 @@ enable_dctcp = 'true'
 init_window = 20
 max_window = 125
 rto_min = 0.005
+receivers = 8
 flow_tot = 100000
 connections_per_pair = 10
 loads = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
@@ -80,6 +81,7 @@ for ecn_scheme in sp_ecn_schemes:
             + str(init_window) + ' '\
             + str(max_window) + ' '\
             + str(rto_min) + ' '\
+            + str(receivers) + ' '\
             + str(flow_tot) + ' '\
             + str(connections_per_pair) + ' '\
             + str(load) + ' '\
