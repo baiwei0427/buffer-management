@@ -2,7 +2,7 @@ source "tcp-traffic-gen.tcl"
 
 set ns [new Simulator]
 
-if {$argc != 27} {
+if {$argc != 29} {
     puts "wrong number of arguments $argc"
     exit 0
 }
@@ -24,27 +24,29 @@ set reserve_buf_size [lindex $argv 10];  #per-port static reserved buffer
 
 #ECN marking
 set port_ecn_thresh [lindex $argv 11];   #per-port ECN marking threshold
-set sp_ecn_thresh [lindex $argv 12];    #per-service-pool ECN marking threeshold
-set enable_sp_ecn [lindex $argv 13];    #enable per-service-pool ECN marking
+set sp_ecn_min_thresh [lindex $argv 12];        #per-service-pool ECN min marking threshold
+set sp_ecn_max_thresh [lindex $argv 13];        #per-service-pool ECN max marking threshold
+set sp_ecn_max_prob [lindex $argv 14];  #per-service-pool ECN max marking probability
+set enable_sp_ecn [lindex $argv 15];    #enable per-service-pool ECN marking
 
 #transport setting
-set enable_dctcp [lindex $argv 14];
-set init_window [lindex $argv 15]
-set max_window [lindex $argv 16]
-set rto_min [lindex $argv 17]
+set enable_dctcp [lindex $argv 16];
+set init_window [lindex $argv 17]
+set max_window [lindex $argv 18]
+set rto_min [lindex $argv 19]
 
 #traffic
-set receivers [lindex $argv 18]; #number of receivers, the rest hosts are senders
-set flow_tot [lindex $argv 19]; #total number of flows to run
-set connections_per_pair [lindex $argv 20]
-set load [lindex $argv 21]
-set flow_cdf [lindex $argv 22]
-set mean_flow_size [lindex $argv 23]
+set receivers [lindex $argv 20]; #number of receivers, the rest hosts are senders
+set flow_tot [lindex $argv 21]; #total number of flows to run
+set connections_per_pair [lindex $argv 22]
+set load [lindex $argv 23]
+set flow_cdf [lindex $argv 24]
+set mean_flow_size [lindex $argv 25]
 
 #log file
-set flowlog [open [lindex $argv 24] w]
-set port_qlen_log [open [lindex $argv 25] w]
-set shared_qlen_log [open [lindex $argv 26] w]
+set flowlog [open [lindex $argv 26] w]
+set port_qlen_log [open [lindex $argv 27] w]
+set shared_qlen_log [open [lindex $argv 28] w]
 
 #print all arguments
 puts "link speed: $link_rate Gbps"
@@ -59,7 +61,9 @@ puts "size of a share buffer: $shared_buf_size bytes"
 puts "alpha for dynamic threshold algorithm: $dt_alpha"
 puts "size of per-port reserved buffer: $reserve_buf_size bytes"
 puts "per-port ECN marking threshold: $port_ecn_thresh packets"
-puts "per-service-pool ECN marking threshold: $sp_ecn_thresh bytes"
+puts "per-service-pool ECN min marking threshold: $sp_ecn_min_thresh bytes"
+puts "per-service-pool ECN max marking threshold: $sp_ecn_max_thresh bytes"
+puts "per-service-pool ECN max marking probability: $sp_ecn_max_prob"
 puts "enable per-service-pool ECN marking: $enable_sp_ecn"
 puts "enable DCTCP: $enable_dctcp"
 puts "TCP initial window: $init_window"
@@ -127,7 +131,10 @@ Queue/DCTCP set pkt_drop_ecn_ 0
 
 Queue/DCTCP set thresh_ $port_ecn_thresh
 Queue/DCTCP set enable_sp_ecn_ $enable_sp_ecn
-Queue/DCTCP set sp_thresh_ $sp_ecn_thresh
+Queue/DCTCP set sp_min_thresh_ $sp_ecn_min_thresh
+Queue/DCTCP set sp_max_thresh_ $sp_ecn_max_thresh
+Queue/DCTCP set sp_max_prob_ $sp_ecn_max_prob
+
 Queue/DCTCP set enable_buffer_ecn_ false
 
 ######################## Topoplgy #########################
