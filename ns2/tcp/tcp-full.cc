@@ -841,7 +841,7 @@ FullTcpAgent::sendpacket(int seqno, int ackno, int pflags, int datalen, int reas
         if (!p) p = allocpkt();
         hdr_tcp *tcph = hdr_tcp::access(p);
 	hdr_flags *fh = hdr_flags::access(p);
-		hdr_ip* iph = hdr_ip::access(p);	//Wei
+	hdr_ip* iph = hdr_ip::access(p);       //Wei
 
 	/* build basic header w/options */
 
@@ -876,8 +876,11 @@ FullTcpAgent::sendpacket(int seqno, int ackno, int pflags, int datalen, int reas
 	}
 
 	// For DCTCP, ect should be set on all packets
-	if (dctcp_)
-		fh->ect() = ect_;
+	//if (dctcp_)
+	//	fh->ect() = ect_;
+        //set ECT for all packets
+        if (ecn_)
+                fh->ect() = ect_;
 
 	if (ecn_ && ect_ && recent_ce_ ) {
 		// This is needed here for the ACK in a SYN, SYN/ACK, ACK
@@ -923,7 +926,7 @@ FullTcpAgent::sendpacket(int seqno, int ackno, int pflags, int datalen, int reas
 //prpkt(p);
 //}
 	//Use IP header priority to denote service id
-	iph->prio()=serviceid_;
+	iph->prio() = serviceid_;
 
 	//Update bytes sent
 	//bytes_+=datalen;
