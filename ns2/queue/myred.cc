@@ -3,6 +3,7 @@
 #include <string.h>
 #include "config.h"
 #include "flags.h"
+#include "random.h"
 #include "myred.h"
 
 #ifndef max
@@ -41,7 +42,9 @@ MyRED::MyRED()
 	headroom_ = 0.9;
 
         enable_sp_ecn_ = 0;
-        sp_thresh_ = 0;
+        sp_min_thresh_ = 0;
+        sp_max_thresh_ = 0;
+        sp_max_prob_ = 0;
 
 	enable_shared_buf_ = 0;
 	alpha_ = 1;
@@ -67,7 +70,9 @@ MyRED::MyRED()
 	bind("headroom_", &headroom_);
 
         bind_bool("enable_sp_ecn_", &enable_sp_ecn_);
-        bind("sp_thresh_", &sp_thresh_);
+        bind("sp_min_thresh_", &sp_min_thresh_);
+        bind("sp_max_thresh_", &sp_max_thresh_);
+        bind("sp_max_prob_", &sp_max_prob_);
 
 	bind_bool("enable_shared_buf_", &enable_shared_buf_);
 	bind("alpha_", &alpha_);
@@ -146,11 +151,21 @@ void MyRED::sp_mark(Packet* p)
 {
         hdr_flags* hf = hdr_flags::access(p);
 
-        if (!enable_shared_buf_ || switch_id_ < 0 || switch_id_ >= NUM_SWITCH)
+        if (!enable_shared_buf_ || switch_id_ < 0 || switch_id_ >= NUM_SWITCH || !hf->ect())
                 return;
 
-        if (hf->ect() && shared_buf_len_[switch_id_] > sp_thresh_)
+        /* queue length > max threshold, mark the packet */
+        if (shared_buf_len_[switch_id_] > sp_max_thresh_) {
                 hf->ce() = 1;
+                return;
+        }
+
+        /* min threshold < queue length < max threshold */
+        if (shared_buf_len_[switch_id_] > sp_min_thresh_) {
+                double u = Random::uniform();
+                if (u <= sp_max_prob_)
+                        hf->ce() = 1;
+        }
 }
 
 /* buffer-aware ECN marking */
