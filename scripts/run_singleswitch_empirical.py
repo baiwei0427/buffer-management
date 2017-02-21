@@ -59,7 +59,10 @@ for ecn_scheme in sp_ecn_schemes:
             scheme += '_static'
 
         if ecn_scheme == 'true':    #enable per-service-pool ECN
-            scheme += '_sp'
+            if sp_ecn_min_thresh < sp_ecn_max_thresh:
+                scheme += '_sp_red'
+            else:
+                scheme += '_sp_cut_off'
 
         # directory name: [scheme]_K_[ECN thresh]_load_[load]
         dir_name = '%s_K_%d_load_%d' % (scheme, port_ecn_thresh, int(load * 100))
