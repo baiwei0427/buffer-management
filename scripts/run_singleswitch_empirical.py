@@ -26,9 +26,9 @@ shared_buf_size = 3 * 1024 * 1024   #3MB
 dt_alpha = 4
 reserve_buf_size = 128 * 1024   #128KB per port
 port_ecn_thresh = 111
-sp_ecn_min_thresh = shared_buf_size - (2.0 * 1024 * 1024 - reserve_buf_size) / dt_alpha - 500 * 1024
-sp_ecn_max_thresh = shared_buf_size - (2.0 * 1024 * 1024 - reserve_buf_size) / dt_alpha
-sp_ecn_max_prob = 0.05
+sp_ecn_min_thresh = shared_buf_size - (2.0 * 1024 * 1024 - reserve_buf_size) / dt_alpha - 600 * 1024
+sp_ecn_max_thresh = shared_buf_size - (2.0 * 1024 * 1024 - reserve_buf_size) / dt_alpha - 0 * 1024
+sp_ecn_max_prob = 0.04
 sp_ecn_schemes = ['true']
 enable_dctcp = 'false'
 init_window = 20
@@ -59,10 +59,10 @@ for ecn_scheme in sp_ecn_schemes:
             scheme += '_static'
 
         if ecn_scheme == 'true':    #enable per-service-pool ECN
-            if sp_ecn_min_thresh < sp_ecn_max_thresh:
-                scheme += '_sp_red'
-            else:
-                scheme += '_sp_cut_off'
+            if sp_ecn_min_thresh < sp_ecn_max_thresh:   #RED-like probability marking
+                scheme += '_bcc_red'
+            else:   #DCTCP-like cut off marking
+                scheme += '_bcc_cut_off'
 
         # directory name: [scheme]_K_[ECN thresh]_load_[load]
         dir_name = '%s_K_%d_load_%d' % (scheme, port_ecn_thresh, int(load * 100))
