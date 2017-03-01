@@ -182,7 +182,7 @@ for {set i 0} {$i < $topology_servers} {incr i} {
         set L [$ns link $tor($j) $s($i)]
         set q [$L set queue_]
         set buf_id [expr $i / $shared_buf_ports]
-        $q set shared_buf_id_ $buf_id
+        $q set switch_id_ $buf_id
         $q set-shared-buffer $buf_id $shared_buf_size
         $q register
         set queues($qid) $q
@@ -200,7 +200,7 @@ for {set i 0} {$i < $topology_tors} {incr i} {
                 set L [$ns link $tor($i) $spine($j)]
                 set q [$L set queue_]
                 set buf_id [expr ($i * $topology_spines + $j) / $shared_buf_ports + $num_buf_leaf_host]
-                $q set shared_buf_id_ $buf_id
+                $q set switch_id_ $buf_id
                 $q set-shared-buffer $buf_id $shared_buf_size
                 $q register
                 set queues($qid) $q
@@ -211,7 +211,7 @@ for {set i 0} {$i < $topology_tors} {incr i} {
                 set L [$ns link $spine($j) $tor($i)]
                 set q [$L set queue_]
                 set buf_id [expr ($j * $topology_tors + $i) / $shared_buf_ports + $num_buf_leaf_host + $num_buf_leaf_spine]
-                $q set shared_buf_id_ $buf_id
+                $q set switch_id_ $buf_id
                 $q set-shared-buffer $buf_id $shared_buf_size
                 $q register
                 set queues($qid) $q
