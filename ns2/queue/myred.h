@@ -39,6 +39,7 @@ protected:
         int sp_min_thresh_;     /* min marking threshold (in bytes) for per service-pool ECN marking */
         int sp_max_thresh_;     /* max marking threshold (in bytes) for per service-pool ECN marking */
         double sp_max_prob_;    /* max marking probability for per service-pool ECN marking */
+        int sp_count_bytes;     /* # of bytes since last mark */
 
         int enable_shared_buf_; /* enable shared buffer or not (static buffer) */
         double alpha_;     /* alpha for DT buffer allocation */

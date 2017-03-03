@@ -45,6 +45,7 @@ MyRED::MyRED()
         sp_min_thresh_ = 0;
         sp_max_thresh_ = 0;
         sp_max_prob_ = 0;
+        sp_count_bytes = 0;
 
 	enable_shared_buf_ = 0;
 	alpha_ = 1;
@@ -150,24 +151,46 @@ void MyRED::port_mark(Packet* p)
 void MyRED::sp_mark(Packet* p)
 {
         hdr_flags* hf = hdr_flags::access(p);
+        int size = hdr_cmn::access(p)->size();
 
         if (!enable_shared_buf_ || switch_id_ < 0 || switch_id_ >= NUM_SWITCH || !hf->ect())
                 return;
 
-        /* queue length > max threshold, mark the packet */
-        if (shared_buf_len_[switch_id_] > sp_max_thresh_) {
-                hf->ce() = 1;
+        sp_count_bytes += size;
+        /* queue length <= min threshold, do not mark the packet */
+        if (shared_buf_len_[switch_id_] <= sp_min_thresh_) {
+                sp_count_bytes = 0;
                 return;
         }
 
-        /* min threshold < queue length < max threshold */
+        /* queue length >= max threshold, mark the packet */
+        if (shared_buf_len_[switch_id_] >= sp_max_thresh_) {
+                hf->ce() = 1;
+                sp_count_bytes = 0;
+                return;
+        }
+
+        /* min threshold < queue length < max threshold, probabilistic marking */
         if (shared_buf_len_[switch_id_] > sp_min_thresh_ &&
             shared_buf_len_[switch_id_] < sp_max_thresh_) {
-                double mark_prob = sp_max_prob_ * (shared_buf_len_[switch_id_] - sp_min_thresh_) /
-                                   (sp_max_thresh_ - sp_min_thresh_);
+                double count1 = (double)sp_count_bytes / mean_pktsize_;
+                double prob = sp_max_prob_ * (shared_buf_len_[switch_id_] - sp_min_thresh_) /
+                              (sp_max_thresh_ - sp_min_thresh_);
+
+                if (count1 * prob < 1.0)
+                        prob /= (1.0 - count1 * prob);
+                else
+                        prob = 1.0;
+
+                if (prob < 1.0)
+                        prob = prob * size / mean_pktsize_;
+
                 double u = Random::uniform();
-                if (u <= mark_prob)
+                /* mark the packet! */
+                if (u <= prob) {
                         hf->ce() = 1;
+                        sp_count_bytes = 0;
+                }
         }
 }
 
