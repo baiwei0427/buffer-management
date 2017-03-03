@@ -161,9 +161,12 @@ void MyRED::sp_mark(Packet* p)
         }
 
         /* min threshold < queue length < max threshold */
-        if (shared_buf_len_[switch_id_] > sp_min_thresh_) {
+        if (shared_buf_len_[switch_id_] > sp_min_thresh_ &&
+            shared_buf_len_[switch_id_] < sp_max_thresh_) {
+                double mark_prob = sp_max_prob_ * (shared_buf_len_[switch_id_] - sp_min_thresh_) /
+                                   (sp_max_thresh_ - sp_min_thresh_);
                 double u = Random::uniform();
-                if (u <= sp_max_prob_)
+                if (u <= mark_prob)
                         hf->ce() = 1;
         }
 }
