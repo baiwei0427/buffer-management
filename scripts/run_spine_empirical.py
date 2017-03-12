@@ -1,6 +1,26 @@
 import threading
 import os
 import Queue
+import re
+
+def get_mean_flow_size(file_name):
+	f = open(file_name, 'rb')
+	lines = f.readlines()
+	f.close()
+
+	cdf_array = []
+	for line in lines:
+		arr = line.split()
+		if len(arr) == 3:
+			cdf_array.append([int(arr[0]), float(arr[2])])
+
+	if len(cdf_array) <= 1:
+		return -1
+
+	mean_size = 0.0
+	for i in range(1, len(cdf_array)):
+		mean_size = mean_size + (cdf_array[i][0] + cdf_array[i-1][0]) * (cdf_array[i][1] - cdf_array[i-1][1]) / 2
+	return mean_size
 
 def worker():
 	while True:
@@ -23,14 +43,16 @@ topology_spines = 8
 
 flow_tot = 100000
 num_pairs = 127
-connections_per_pair = 3
+connections_per_pair = 2
 core_loads = [0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9]
-flow_cdf = 'CDF_dctcp.tcl'
-mean_flow_size = 1711250
+#flow_cdf = 'CDF_websearch.tcl'
+#mean_flow_size = 1711250
+mean_flow_size = get_mean_flow_size(flow_cdf)
+workload_name = re.split(r'[_.]+', flow_cdf)[1]
 
 enable_dctcp = 'true'
 init_window = 20
-max_window = 150
+max_window = 125
 packet_size = 8960
 rto_min = 0.005
 
@@ -43,9 +65,9 @@ reserve_buf_size = 128 * 1024
 
 port_ecn_thresh = 80
 sp_ecn_schemes = ['true', 'false']
-sp_ecn_min_thresh = shared_buf_size - (1.72 * 1024 * 1024 - reserve_buf_size) / dt_alpha - 600 * 1024
+sp_ecn_min_thresh = shared_buf_size - (1.72 * 1024 * 1024 - reserve_buf_size) / dt_alpha - 800 * 1024
 sp_ecn_max_thresh = shared_buf_size - (1.72 * 1024 * 1024 - reserve_buf_size) / dt_alpha - 0 * 1024
-sp_ecn_max_prob = 0.04
+sp_ecn_max_prob = 0.1
 
 ns_path = '/home/wei/buffer_management/ns-allinone-2.35/ns-2.35/ns'
 sim_script = 'spine_empirical.tcl'
@@ -55,7 +77,7 @@ print 'Oversubscription ratio ' + str(topology_x)
 
 for ecn_scheme in sp_ecn_schemes:
 	for core_load in core_loads:
-		scheme = 'spine' #spine leaf topology
+		scheme = '%s_spine' % workload_name
 
 		if enable_dctcp == 'true':
 			scheme += '_dctcp'
@@ -77,6 +99,8 @@ for ecn_scheme in sp_ecn_schemes:
 		dir_name = '%s_K_%d_load_%d' % (scheme, port_ecn_thresh, int(core_load * 100))
 		# transfer core load to edge load
 		edge_load = core_load / topology_x
+		if topology_tors > 1:
+			edge_load = (edge_load * topology_tors + 0.0) / (topology_tors - 1)
 
 		#Simulation command
 		cmd = ns_path + ' ' + sim_script + ' '\
@@ -115,7 +139,7 @@ for ecn_scheme in sp_ecn_schemes:
 
 #Create all worker threads
 threads = []
-number_worker_threads = 20
+number_worker_threads = 22
 
 #Start threads to process jobs
 for i in range(number_worker_threads):
