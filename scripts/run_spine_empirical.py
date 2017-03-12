@@ -47,6 +47,7 @@ connections_per_pair = 2
 core_loads = [0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9]
 #flow_cdf = 'CDF_websearch.tcl'
 #mean_flow_size = 1711250
+flow_cdf = 'CDF_websearch.tcl'
 mean_flow_size = get_mean_flow_size(flow_cdf)
 workload_name = re.split(r'[_.]+', flow_cdf)[1]
 
