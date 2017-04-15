@@ -21,7 +21,7 @@ for line in lines:
     arr = line.split()
     if len(arr) < 2 or float(arr[0]) < 1:
         continue
-    port_qlen.append(int(arr[1]) / 1000)
+    port_qlen.append(int(arr[1]) / 1024)
 
 port_qlen.sort()
 length = len(port_qlen)
@@ -29,10 +29,17 @@ cdf = range(0, length)
 length = length + 0.0
 cdf[:] = [x * 100 / length for x in cdf]
 
+matplotlib.rc('xtick', labelsize = 32)
+matplotlib.rc('ytick', labelsize = 32)
+plt.rcParams["figure.figsize"] = [16, 9]
 plt.plot(port_qlen, cdf)
-plt.xlabel('Port buffer occupancy (KB)')
-plt.ylabel('CDF (%)')
+plt.xlabel('Port buffer occupancy (KB)\n', fontsize = 36)
+plt.ylabel('CDF (%)', fontsize = 36)
+plt.gcf().subplots_adjust(bottom=0.15)
 plt.savefig(fig_name)
 
-print '99.9th percentile %d' % port_qlen[int(0.999 * length)]
-print '99.99th percentile %d' % port_qlen[int(0.9999 * length)]
+for i in range(1, 100):
+    print '%dth percentile %d' % (i, port_qlen[max(int((i + 0.0) * length / 100) - 1, 0)])
+
+print '99.9th percentile %d' % port_qlen[max(int(0.999 * length) - 1, 0)]
+print '99.99th percentile %d' % port_qlen[max(int(0.9999 * length) - 1, 0)]
