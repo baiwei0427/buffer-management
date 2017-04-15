@@ -29,13 +29,15 @@ cdf = range(0, length)
 length = length + 0.0
 cdf[:] = [x * 100 / length for x in cdf]
 
-matplotlib.rc('xtick', labelsize = 32)
-matplotlib.rc('ytick', labelsize = 32)
+plt.rc('xtick', labelsize = 32)
+plt.rc('ytick', labelsize = 32)
 plt.rcParams["figure.figsize"] = [16, 9]
-plt.plot(port_qlen, cdf)
-plt.xlabel('Port buffer occupancy (KB)\n', fontsize = 36)
-plt.ylabel('CDF (%)', fontsize = 36)
+plt.rc('grid', linestyle="--", color='black', linewidth = 4)
+plt.plot(port_qlen, cdf, linewidth = 10)
+plt.xlabel('Port buffer occupancy (KB)\n', fontsize = 40)
+plt.ylabel('CDF (%)', fontsize = 40)
 plt.gcf().subplots_adjust(bottom=0.15)
+plt.grid(True)
 plt.savefig(fig_name)
 
 for i in range(1, 100):
